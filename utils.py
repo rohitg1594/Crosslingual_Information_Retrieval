@@ -49,7 +49,6 @@ def load_dictionary(path, max_vocab, word2id1, word2id2):
 
     dico = np.array(dico_list)
 
-
     return dico
 
 
