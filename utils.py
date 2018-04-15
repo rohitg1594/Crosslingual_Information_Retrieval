@@ -3,7 +3,7 @@ import numpy as np
 from sklearn.preprocessing import normalize
 
 
-def read_emb(path, max_vocab, norm=1):
+def load_embs(path, max_vocab, norm=1):
     '''Read word embeddings from file at path.'''
     assert os.path.isfile(path)
     word2vec = {}
