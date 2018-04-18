@@ -87,15 +87,26 @@ if args.method == 'supervised':
 
 
 elif args.method == 'unsupervised':
+
+   # Get the optimizer function
     if args.optim == "Adam":
         optimizer = optim.Adam
     elif args.optim_fn == "RMSprop":
         optimizer = optim.RMSprop
 
+    # Setup the discriminator and the mapper
     discriminator = Discriminator(emb_dim, hidden_dim, num_hidden, input_do, hidden_do)
     mapper = nn.Linear(emb_dim, emb_dim)
     mapper.weight.data.copy_(torch.diag(torch.ones(emb_dim)))
-    trainer = Trainer(optimizer, src_embs, tgt_embs, batch_size, smooth, discriminator, mapper)
+
+    # Change the numpy embeddings to torch embeddings
+    src_embs_torch = nn.Embedding(len(src_embs), emb_dim)
+    src_embs_torch.weight.data.copy_(torch.from_numpy(src_embs.astype(np.float32)))
+    tgt_embs_torch = nn.Embedding(len(tgt_embs), emb_dim)
+    tgt_embs_torch.weight.data.copy_(torch.from_numpy(tgt_embs.astype(np.float32)))
+
+    # Setup the trainer
+    trainer = Trainer(optimizer, src_embs_torch, tgt_embs_torch, batch_size, smooth, discriminator, mapper)
 
     for i in range(num_epochs):
         num_iters = 0

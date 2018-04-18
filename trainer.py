@@ -6,8 +6,8 @@ import torch.nn.functional as F
 class Trainer():
     def __init__(self, optim_fn, src_embs, tgt_embs, batch_size, smooth, discriminator, mapper):
         self.optim_fn = optim_fn
-        self.src_embs = src_embs.astype(np.float32)
-        self.tgt_embs = tgt_embs.astype(np.float32)
+        self.src_embs = src_embs
+        self.tgt_embs = tgt_embs
         self.batch_size = batch_size
         self.smooth = smooth
         self.discriminator = discriminator
@@ -18,15 +18,19 @@ class Trainer():
 
     def _get_train_batch(self):
         '''Get input training data'''
-        mask = np.random.choice(self.src_embs.shape[0], size=self.batch_size)
-        x_src = self.src_embs[mask]
-        x_src = self.mapper(Variable(torch.from_numpy(x_src)))
-        x_tgt = Variable(torch.from_numpy(self.tgt_embs[mask]))
+        mask_src = torch.LongTensor(self.batch_size).random_(len(self.src_embs.weight))
+        mask_tgt = torch.LongTensor(self.batch_size).random_(len(self.tgt_embs.weight))
+
+        x_src = self.src_embs(Variable(mask_src))
+        x_src = self.mapper(Variable(x_src.data))
+
+        x_tgt = self.tgt_embs(Variable(mask_tgt))
         X = Variable(torch.cat([x_src.data, x_tgt.data], 0))
 
-        Y = Variable(torch.zeros(2*self.batch_size))
+        Y = torch.zeros(2*self.batch_size)
         Y[:self.batch_size] = 1 - self.smooth
         Y[self.batch_size] = self.smooth
+        Y = Variable(Y)
 
         return X, Y
 
