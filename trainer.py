@@ -19,9 +19,11 @@ class Trainer():
     def _get_train_batch(self):
         '''Get input training data'''
         mask = np.random.choice(self.src_embs.shape[0], size=self.batch_size)
-        x_src = torch.from_numpy(self.src_embs[mask])
-        x_tgt = torch.from_numpy(self.tgt_embs[mask])
-        X = Variable(torch.cat((x_src, x_tgt), 0))
+        x_src = self.src_embs[mask]
+        x_src = self.mapper(Variable(torch.from_numpy(x_src)))
+        x_tgt = Variable(torch.from_numpy(self.tgt_embs[mask]))
+        X = Variable(torch.cat([x_src.data, x_tgt.data], 0))
+
         Y = Variable(torch.zeros(2*self.batch_size))
         Y[:self.batch_size] = 1 - self.smooth
         Y[self.batch_size] = self.smooth
@@ -35,13 +37,10 @@ class Trainer():
         """
         self.discriminator.train()
 
-        # loss
         x, y = self._get_train_batch()
         preds = self.discriminator(Variable(x.data))
         loss = F.binary_cross_entropy(preds, y)
 
-
-        # optim
         self.dis_optimizer.zero_grad()
         loss.backward()
         self.dis_optimizer.step()
@@ -55,12 +54,10 @@ class Trainer():
         """
         self.discriminator.eval()
 
-        # loss
         x, y = self._get_train_batch()
         preds = self.discriminator(x)
         loss = F.binary_cross_entropy(preds, 1 - y)
 
-        # optim
         self.map_optimizer.zero_grad()
         loss.backward()
         self.map_optimizer.step()
