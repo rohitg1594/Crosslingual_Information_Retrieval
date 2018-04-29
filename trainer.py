@@ -29,7 +29,7 @@ class Trainer():
 
         Y = torch.zeros(2*self.batch_size)
         Y[:self.batch_size] = 1 - self.smooth
-        Y[self.batch_size] = self.smooth
+        Y[self.batch_size:] = self.smooth
         Y = Variable(Y)
 
         return X, Y
@@ -40,7 +40,7 @@ class Trainer():
         Train the discriminator.
         """
         self.discriminator.train()
-
+        
         x, y = self._get_train_batch()
         preds = self.discriminator(Variable(x.data))
         loss = F.binary_cross_entropy(preds, y)

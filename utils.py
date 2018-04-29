@@ -1,6 +1,11 @@
 import os
 import numpy as np
 from sklearn.preprocessing import normalize
+from spacy.tokenizer import Tokenizer
+import spacy
+from collections import defaultdict
+
+np.set_printoptions(edgeitems=5)
 
 
 def load_embs(path, max_vocab, norm=1):
@@ -34,7 +39,6 @@ def load_embs(path, max_vocab, norm=1):
     if norm:
         embs = normalize(embs, axis=1, norm='l2')
 
-
     return embs, word2vec, word2id, id2word
 
 
@@ -53,7 +57,6 @@ def load_dictionary(path, max_vocab, word2id1, word2id2):
 
     dico = np.array(dico_list)
 
-
     return dico
 
 
@@ -66,5 +69,75 @@ def get_parallel_data(src_embs, tgt_embs, dico):
 
     return X, Y
 
+
+def load_sentence_data(file_name, model_name, word2id, max_sentences=1000):
+    'Read corpus form file and return list of np vectors'
+    nlp = spacy.load(model_name)
+    tokenizer = Tokenizer(nlp.vocab)
+
+    corpus = []
+    with open(file_name, 'r') as f:
+        for i, line in enumerate(f):
+            tokens = tokenizer(line.strip())
+            tokens = np.array([word2id.get(token.text.lower(), -1) for token in tokens])
+            corpus.append(tokens)
+            if i == max_sentences:
+                break
+    return corpus
+
+
+def compute_tf_idf(corpus, word2vec, id2word, vec_dim=300, mapper=np.ones(300), source=True, norm=True):
+    'Computes the tf-idf weight for the corpus'
+    N = len(corpus)
+    idfmap = defaultdict(int)
+    tf = defaultdict(int)
+    corpus_vec = np.zeros((N, vec_dim))
+
+    # Create idfmap
+    for sent_i, sentence in enumerate(corpus):
+        word_indices = np.unique(sentence)
+        for word_i in word_indices:
+            idfmap[word_i] += 1
+
+    # Create tf-idf weights
+    for sent_i, sentence in enumerate(corpus):
+        vec = np.zeros(vec_dim)
+        index, row_count = np.unique(sentence, return_counts=True)
+        index = index.astype(np.int32)
+        try:
+            f_max = np.max(row_count)
+        except ValueError:
+            print('Row count is empty for sentence {}-------->{}'.format(sent_i, sentence))
+            corpus_vec[sent_i] = np.zeros(vec_dim)
+            continue
+
+        # For every unique word in sentence
+        for i, f in zip(index, row_count):
+            idf = np.log(N/idfmap[i])
+            tf = (1 + np.log(f))/(1 + np.log(f_max))
+            try:
+                if source:
+                    vec += tf*idf*word2vec[id2word[i]]@mapper
+                else:
+                    vec += tf*idf*word2vec[id2word[i]]
+            except KeyError:
+                continue
+
+        vec = vec[None]
+        if normalize:
+            vec = normalize(vec)
+        corpus_vec[sent_i] = vec
+
+    return corpus_vec
+
+
+if __name__ == '__main__':
+    import sys
+
+    embs_en, word2vec_en, word2id_en, id2word_en = load_embs('../data/wiki.en.vec', int(sys.argv[2]))
+    corpus_en = load_sentence_data(sys.argv[1], 'en', word2id_en)
+    compute_tf_idf(corpus_en, word2vec_en, id2word_en)
+    sys.exit(0)
+    embs_de, word2vec_de, word2id_de, id2word_de = load_embs('../data/wiki.de.vec', int(sys.argv[2]))
 
 

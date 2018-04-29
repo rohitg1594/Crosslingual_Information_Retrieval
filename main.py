@@ -1,5 +1,5 @@
-from utils import load_embs, load_dictionary, get_parallel_data
-from evaluation import evaluation1, evaluation2, eval_data
+from utils import load_embs, load_dictionary, get_parallel_data, compute_tf_idf, load_sentence_data
+from evaluation import evaluation1, evaluation2, eval_data, evaluation_main
 from procrustes import procrustes
 import argparse
 import faiss
@@ -11,7 +11,9 @@ import torch
 from models import Discriminator
 
 
-parser = argparse.ArgumentParser(description="Cross Lingual Sentence Retrieval")
+parser = argparse.ArgumentParser(description="Cross Lingual Sentence Retrieval", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+parser.add_argument("--src_lang", default="en", help="Source lang")
+parser.add_argument("--tgt_lang", default="de", help="Source lang")
 parser.add_argument("--src_embs", default="../data/wiki.en.vec", help="File path of source embeddings")
 parser.add_argument("--tgt_embs", default="../data/wiki.de.vec", help="File path of target embeddings")
 parser.add_argument("--emb_dim", default="300", help="dimnsion of embeddings")
@@ -32,6 +34,12 @@ parser.add_argument("--smooth", default="0.1", help="smoothing parameter for adv
 parser.add_argument("--batch_size", default="128", help="batch size")
 parser.add_argument("--num_epochs", default="10", help="number of epochs for adversarial training")
 parser.add_argument("--evaluate_every", default="10", help="number of epochs after which to evaluate")
+# Evaluation
+parser.add_argument("--evaluate_mapping", default=False, type=bool, help="whether to evaluate mapping")
+# Sentence Retrieval
+parser.add_argument("--src_sents", default="../data/europarl-v7.de-en.en", help="file path of source sentences")
+parser.add_argument("--tgt_sents", default="../data/europarl-v7.de-en.de", help="file path of target sentences")
+parser.add_argument("--max_sents", default=1000, type=int, help="maximum number of sentences loaded from disk")
 
 args = parser.parse_args()
 beta = float(args.beta)
@@ -46,6 +54,7 @@ num_hidden = int(args.num_hidden)
 input_do = float(args.input_do)
 hidden_do = float(args.hidden_do)
 evaluate_every = int(args.evaluate_every)
+evaluate_mapping = args.evaluate_mapping
 
 assert int(args.orthognalize) in [0, 1]
 
@@ -54,26 +63,7 @@ print('Loaded source embeddings')
 tgt_embs, tgt_word2vec, tgt_word2id, tgt_id2word = load_embs(args.tgt_embs, max_vocab, norm)
 print('Loaded target embeddings')
 
-def evaluation(W):
-   dico_test = load_dictionary(args.test_dict, -1, src_word2id, tgt_word2id)
-   X_test, Y_test = get_parallel_data(src_embs, tgt_embs, dico_test)
 
-   I_test = eval_data(W, X_test, tgt_embs)
-
-   evaluation1(I_test, dico_test)
-   dicts = evaluation2(I_test, dico_test, src_id2word)
-   incorrect_1 = [k for k, v in dicts[0].items() if v==0]
-
-   for i in range(20):
-       src_word = src_id2word[dico_test[i,0]]
-       correct_trans = tgt_id2word[dico_test[i,1]]
-       if src_word in incorrect_1:
-           preds = ''
-           for k in range(10):
-               pred = tgt_id2word[I_test[i, k]]
-               preds += pred + ', '
-           preds = preds[:-2]
-           print('{:<15}|{:<15}|{}'.format(src_word, correct_trans, preds))
 
 if args.method == 'supervised':
    dico = load_dictionary(args.train_dict, -1, src_word2id, tgt_word2id)
@@ -83,7 +73,8 @@ if args.method == 'supervised':
    if int(args.orthognalize):
        W = (1 + beta)*W - beta*(W@W.T)@W
 
-   evaluation(W)
+   if evaluate_mapping:
+      evaluation(W)
 
 
 elif args.method == 'unsupervised':
@@ -108,6 +99,7 @@ elif args.method == 'unsupervised':
     # Setup the trainer
     trainer = Trainer(optimizer, src_embs_torch, tgt_embs_torch, batch_size, smooth, discriminator, mapper)
 
+    # Training loop
     for i in range(num_epochs):
         num_iters = 0
         while num_iters <= len(src_embs):
@@ -121,3 +113,17 @@ elif args.method == 'unsupervised':
         if i%evaluate_every  == 0:
            W = mapper.weight.data.numpy()
            evaluation(W)
+
+
+
+src_corpus = load_sentence_data(args.src_sents, args.src_lang, src_word2id, max_sentences=args.max_sents)
+src_vec = compute_tf_idf(src_corpus, src_word2vec, src_id2word, mapper=W, source=True)
+
+tgt_corpus = load_sentence_data(args.tgt_sents, args.tgt_lang, tgt_word2id, max_sentences=args.max_sents)
+tgt_vec = compute_tf_idf(tgt_corpus, tgt_word2vec, tgt_id2word, source=False)
+
+index = faiss.IndexFlatIP(300)
+index.add(tgt_vec.astype(np.float32))
+D, I = index.search(src_vec.astype(np.float32), 10)
+
+print(I[:10])

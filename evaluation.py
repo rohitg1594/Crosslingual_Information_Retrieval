@@ -41,7 +41,7 @@ def evaluation2(I_test, dico_test, src_word2id):
         print('Correct : {}, Top {} precision: {}'.format(correct, k, correct/l))
 
     return dicts
-    
+
 def eval_data(W, X, tgt_embs, k=20):
     '''Create and search in Faiss Index, return resulting index matrix.'''
 
@@ -50,4 +50,24 @@ def eval_data(W, X, tgt_embs, k=20):
     D, I = index.search((X@W).astype(np.float32), k)
 
     return I
-    
+
+def evaluation_main(W):
+   dico_test = load_dictionary(args.test_dict, -1, src_word2id, tgt_word2id)
+   X_test, Y_test = get_parallel_data(src_embs, tgt_embs, dico_test)
+
+   I_test = eval_data(W, X_test, tgt_embs)
+
+   evaluation1(I_test, dico_test)
+   dicts = evaluation2(I_test, dico_test, src_id2word)
+   incorrect_1 = [k for k, v in dicts[0].items() if v==0]
+
+   for i in range(20):
+       src_word = src_id2word[dico_test[i,0]]
+       correct_trans = tgt_id2word[dico_test[i,1]]
+       if src_word in incorrect_1:
+           preds = ''
+           for k in range(10):
+               pred = tgt_id2word[I_test[i, k]]
+               preds += pred + ', '
+           preds = preds[:-2]
+           print('{:<15}|{:<15}|{}'.format(src_word, correct_trans, preds))
