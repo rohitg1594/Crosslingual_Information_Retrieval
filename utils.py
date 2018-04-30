@@ -1,4 +1,5 @@
 import os
+from numpy.linalg import inv
 import numpy as np
 from sklearn.preprocessing import normalize
 from spacy.tokenizer import Tokenizer
@@ -107,7 +108,6 @@ def compute_tf_idf(corpus, word2vec, id2word, vec_dim=300, mapper=np.ones(300), 
         try:
             f_max = np.max(row_count)
         except ValueError:
-            print('Row count is empty for sentence {}-------->{}'.format(sent_i, sentence))
             corpus_vec[sent_i] = np.zeros(vec_dim)
             continue
 
@@ -124,20 +124,71 @@ def compute_tf_idf(corpus, word2vec, id2word, vec_dim=300, mapper=np.ones(300), 
                 continue
 
         vec = vec[None]
-        if normalize:
-            vec = normalize(vec)
+        if norm:
+            vec = normalize(vec, axis=1, norm='l2')
         corpus_vec[sent_i] = vec
 
     return corpus_vec
+
+def sigmoid(x):
+    'Sigmoid function'
+
+    return 1/(1 + np.exp(-x))
+
+
+def mahalanobis(p1, p2, global_cov):
+    '''Calculate mahalonbis metric b/w p1 and p2'''
+
+    return np.sqrt((p1 - p2)@global_cov@(p1 - p2).T)
+
+
+def cosal_vec(corpus, global_avg, global_cov, word2vec, id2word, word_dim=300, global_only=True, mapper=np.ones((300, 300)), source=True):
+    '''Calculate the CoSal weigthed sentence embeddings'''
+    N = len(corpus)
+    corpus_vec = np.zeros((N, word_dim))
+    for sent_i, sentence in enumerate(corpus):
+        # If sentence is empty, then just put a vector of zeros
+        if len(sentence) == 0:
+            corpus_vec[sent_i] = np.zeros(word_dim)
+            continue
+
+        # Creat array from word ids, if source language, apply mapper
+        vecs= np.array([word2vec.get(id2word.get(i, -1), np.zeros(word_dim)) for i in sentence])
+        if source:
+            vecs = vecs@mapper
+
+        print(vecs.shape)
+        # Create average vector, use global average if asked
+        if global_only:
+            avg_vec = global_avg
+        else:
+            avg_vec = normalize(np.mean(vecs, axis=0)[None], axis=1, norm='l2')
+
+        # Create array of normalized mahalanobis distances
+        distances = np.array([mahalanobis(vec, avg_vec, global_cov) for vec in vecs]
+        distances /= 2*np.mean(distances)
+
+        # Sigmoid of distances
+        if global_only:
+            weights = sigmoid(distances)
+        else:
+            weights = 1.9*(distances - 0.5) + 0.5
+
+        corpus_vec[sent_i] = np.sum(weights.reshape(weights.shape[0], -1)*vecs, axis=0)
+
+    return corpus_vec
+
 
 
 if __name__ == '__main__':
     import sys
 
-    embs_en, word2vec_en, word2id_en, id2word_en = load_embs('../data/wiki.en.vec', int(sys.argv[2]))
+    embs_en, word2vec_en, word2id_en, id2word_en = load_embs('../data/wiki.en.vec', int(sys.argv[1]))
+    global_avg, global_cov = np.mean(embs_en, axis=0), np.cov(embs_en, rowvar=0)
+
+
+    sys.exit(0)
     corpus_en = load_sentence_data(sys.argv[1], 'en', word2id_en)
     compute_tf_idf(corpus_en, word2vec_en, id2word_en)
     sys.exit(0)
-    embs_de, word2vec_de, word2id_de, id2word_de = load_embs('../data/wiki.de.vec', int(sys.argv[2]))
-
-
+    embs_de, word2vec_de, word2id_de, id2word_de = load_embs('../data/wiki.de.vec', int(sys.argv[1]))

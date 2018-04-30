@@ -71,3 +71,15 @@ def evaluation_main(W):
                preds += pred + ', '
            preds = preds[:-2]
            print('{:<15}|{:<15}|{}'.format(src_word, correct_trans, preds))
+
+def eval_sents(I, ks):
+    '''Evaluate the sentences retrieval for top ks precision.'''
+    topks = np.zeros(len(ks))
+
+    for j, k in enumerate(ks):
+        for i in range(I.shape[0]):
+            if i in I[i,:k]:
+                topks[j] += 1
+
+    topks /= I.shape[0]
+    return topks

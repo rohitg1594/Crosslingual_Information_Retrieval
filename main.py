@@ -1,5 +1,5 @@
-from utils import load_embs, load_dictionary, get_parallel_data, compute_tf_idf, load_sentence_data
-from evaluation import evaluation1, evaluation2, eval_data, evaluation_main
+from utils import load_embs, load_dictionary, get_parallel_data, compute_tf_idf, load_sentence_data, cosal_vec
+from evaluation import evaluation1, evaluation2, eval_data, evaluation_main, eval_sents
 from procrustes import procrustes
 import argparse
 import faiss
@@ -40,8 +40,10 @@ parser.add_argument("--evaluate_mapping", default=False, type=bool, help="whethe
 parser.add_argument("--src_sents", default="../data/europarl-v7.de-en.en", help="file path of source sentences")
 parser.add_argument("--tgt_sents", default="../data/europarl-v7.de-en.de", help="file path of target sentences")
 parser.add_argument("--max_sents", default=1000, type=int, help="maximum number of sentences loaded from disk")
+parser.add_argument("--aggr_sents", default='tf-idf', choices=['CoSal', 'tf-idf'],  help="type of sentence aggregation method (tf-idf or CoSal)")
 
 args = parser.parse_args()
+print(args.aggr_sents)
 beta = float(args.beta)
 max_vocab = int(args.max_vocab)
 norm = int(args.norm)
@@ -117,13 +119,23 @@ elif args.method == 'unsupervised':
 
 
 src_corpus = load_sentence_data(args.src_sents, args.src_lang, src_word2id, max_sentences=args.max_sents)
-src_vec = compute_tf_idf(src_corpus, src_word2vec, src_id2word, mapper=W, source=True)
-
 tgt_corpus = load_sentence_data(args.tgt_sents, args.tgt_lang, tgt_word2id, max_sentences=args.max_sents)
-tgt_vec = compute_tf_idf(tgt_corpus, tgt_word2vec, tgt_id2word, source=False)
+print(args.aggr_sents)
+if args.aggr_sents == 'tf-idf':
+   src_vec = compute_tf_idf(src_corpus, src_word2vec, src_id2word, mapper=W, source=True)
+   tgt_vec = compute_tf_idf(tgt_corpus, tgt_word2vec, tgt_id2word, source=False)
+else:
+   print('in cosal')
+   global_avg_src, global_cov_src = np.mean(src_embs@W, axis=0), np.cov(src_embs@W, rowvar=0)
+   print(global_cov_src.shape)
+   global_avg_tgt, global_cov_tgt = np.mean(tgt_embs, axis=0), np.cov(tgt_embs, rowvar=0)
+   src_vec = cosal_vec(src_corpus, global_avg_src, global_cov_src, src_word2vec, src_id2word, mapper=W, word_dim=300, global_only=False, source=True)
+   tgt_vec = cosal_vec(tgt_corpus, global_avg_tgt, global_cov_tgt, tgt_word2vec, tgt_id2word, word_dim=300, global_only=False, source=False)
+
 
 index = faiss.IndexFlatIP(300)
 index.add(tgt_vec.astype(np.float32))
 D, I = index.search(src_vec.astype(np.float32), 10)
 
-print(I[:10])
+
+print(eval_sents(I, [1, 5, 10]))
