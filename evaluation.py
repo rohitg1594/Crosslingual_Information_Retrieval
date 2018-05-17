@@ -1,10 +1,10 @@
-import numpy as np
 import faiss
+from utils import *
 from collections import defaultdict
 
 
-def evaluation1(I_test, dico_test):
-    '''Evaluation without multiple translations'''
+def eval_wo(I_test, dico_test):
+    """Evaluation without multiple translations"""
 
     ks = [1,5,10]
     correct = [0,0,0]
@@ -17,20 +17,20 @@ def evaluation1(I_test, dico_test):
     return correct
 
 
-def evaluation2(I_test, dico_test, src_word2id):
-    '''Evaluation with multiple translations'''
+def eval_w(I_test, dico_test, src_word2id):
+    """Evaluation with multiple translations"""
 
-    ks = [1,5,10]
+    ks = [1, 5, 10]
     dicts = []
     for i, k in enumerate(ks):
         matches = defaultdict(list)
         for j in range(I_test.shape[0]):
-            if dico_test[j,1] in I_test[j,:k]:
-                matches[src_word2id[dico_test[j,0]]].append(1)
+            if dico_test[j, 1] in I_test[j, :k]:
+                matches[src_word2id[dico_test[j, 0]]].append(1)
             else:
-                matches[src_word2id[dico_test[j,0]]].append(0)
+                matches[src_word2id[dico_test[j, 0]]].append(0)
 
-        l = len(matches)
+        num_matches = len(matches)
         correct = 0
         for key, value in matches.items():
             matches[key] = max(value)
@@ -38,42 +38,51 @@ def evaluation2(I_test, dico_test, src_word2id):
 
 
         dicts.append(dict(matches))
-        print('Correct : {}, Top {} precision: {}'.format(correct, k, correct/l))
+        print('Correct : {}, Top {} precision: {}'.format(correct, k, correct/num_matches))
 
     return dicts
 
-def eval_data(W, X, tgt_embs, k=20):
-    '''Create and search in Faiss Index, return resulting index matrix.'''
+
+def eval_data(w, x, tgt_embs, k=20):
+    """Create and search in Faiss Index, return resulting index matrix."""
 
     index = faiss.IndexFlatIP(300)
     index.add(tgt_embs.astype(np.float32))
-    D, I = index.search((X@W).astype(np.float32), k)
+    d, i = index.search((x@w).astype(np.float32), k)
 
-    return I
+    return i
 
-def evaluation_main(W):
-   dico_test = load_dictionary(args.test_dict, -1, src_word2id, tgt_word2id)
-   X_test, Y_test = get_parallel_data(src_embs, tgt_embs, dico_test)
 
-   I_test = eval_data(W, X_test, tgt_embs)
+def eval_main(W, test_dict, src_word2id, tgt_word2id, src_embs, tgt_embs, src_id2word, tgt_id2word, verbose=False):
+    """Main evaluation function for evaluating word embedding, uses both eval_w and eval_wo"""
 
-   evaluation1(I_test, dico_test)
-   dicts = evaluation2(I_test, dico_test, src_id2word)
-   incorrect_1 = [k for k, v in dicts[0].items() if v==0]
+    dico_test = load_dictionary(test_dict, -1, src_word2id, tgt_word2id)
+    X_test, Y_test = get_parallel_data(src_embs, tgt_embs, dico_test)
 
-   for i in range(20):
-       src_word = src_id2word[dico_test[i,0]]
-       correct_trans = tgt_id2word[dico_test[i,1]]
-       if src_word in incorrect_1:
-           preds = ''
-           for k in range(10):
-               pred = tgt_id2word[I_test[i, k]]
-               preds += pred + ', '
-           preds = preds[:-2]
-           print('{:<15}|{:<15}|{}'.format(src_word, correct_trans, preds))
+    I_test = eval_data(W, X_test, tgt_embs)
+
+    print("Taking into account multiple translations:")
+    eval_wo(I_test, dico_test)
+    print("Not taking into account multiple translations:")
+    dicts = eval_w(I_test, dico_test, src_id2word)
+    incorrect_1 = [k for k, v in dicts[0].items() if v == 0]
+
+    # print out incorrect translations for analysis and debugging
+    if verbose:
+        for i in range(20):
+           src_word = src_id2word[dico_test[i,0]]
+           correct_trans = tgt_id2word[dico_test[i,1]]
+           if src_word in incorrect_1:
+               preds = ''
+               for k in range(10):
+                   pred = tgt_id2word[I_test[i, k]]
+                   preds += pred + ', '
+               preds = preds[:-2]
+               print('{:<15}|{:<15}|{}'.format(src_word, correct_trans, preds))
+
 
 def eval_sents(I, ks):
-    '''Evaluate the sentences retrieval for top ks precision.'''
+    """Evaluate the sentences retrieval for top ks precision."""
     topks = np.zeros(len(ks))
 
     for j, k in enumerate(ks):
@@ -82,4 +91,7 @@ def eval_sents(I, ks):
                 topks[j] += 1
 
     topks /= I.shape[0]
-    return topks
+
+    for k, topk in zip(ks, topks):
+        print('Top {} precision : {}'.format(k, topk))
+

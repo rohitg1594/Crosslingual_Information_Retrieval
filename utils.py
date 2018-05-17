@@ -1,17 +1,29 @@
 import os
-from numpy.linalg import inv
 import numpy as np
 from sklearn.preprocessing import normalize
-from spacy.tokenizer import Tokenizer
-import spacy
-from collections import defaultdict
+import pickle
+import argparse
 
 np.set_printoptions(edgeitems=5)
 
 
-def load_embs(path, max_vocab, norm=1):
-    '''Read word embeddings from file at path.'''
-    assert os.path.isfile(path)
+def load_embs_bin(path):
+    """Read word embeddings from pickle file at path.
+    :param: path : str :file path of word embedding in pickle format
+
+    """
+    with open(path, 'rb') as f:
+        embs, word2vec, word2id, id2word = pickle.load(f)
+
+    return embs, word2vec, word2id, id2word
+
+
+def load_embs(path, max_vocab, norm=True):
+    """Read word embeddings from vec file at path.
+    :param: path : str :file path of word embedding in txt format
+    :param: max_vocab : int : max number of word embeddings loaded from disk
+    :param: norm : bool : whether to normalize matrices
+    """
     word2vec = {}
     word2id = {}
     vectors = []
@@ -43,7 +55,9 @@ def load_embs(path, max_vocab, norm=1):
     return embs, word2vec, word2id, id2word
 
 
-def load_dictionary(path, max_vocab, word2id1, word2id2):
+def load_dictionary(path, max_vocab, src_word2id, tgt_word2id):
+    """Loads training dict from file at path."""
+
     assert os.path.isfile(path)
     dico_list = []
     with open(path, 'r') as f:
@@ -51,9 +65,9 @@ def load_dictionary(path, max_vocab, word2id1, word2id2):
             if i == max_vocab:
                 break
             split = line.split()
-            if split[0] in word2id1 and split[1] in word2id2:
-                id1 = int(word2id1[split[0]])
-                id2 = int(word2id2[split[1]])
+            if split[0] in src_word2id and split[1] in tgt_word2id:
+                id1 = int(src_word2id[split[0]])
+                id2 = int(tgt_word2id[split[1]])
                 dico_list.append([id1, id2])
 
     dico = np.array(dico_list)
@@ -62,8 +76,8 @@ def load_dictionary(path, max_vocab, word2id1, word2id2):
 
 
 def get_parallel_data(src_embs, tgt_embs, dico):
-    '''Return parallel X and Y matrices corresponding to src
-       and tgt embs respectively.'''
+    """Return parallel X and Y matrices corresponding to source
+       and target embedding matrices respectively."""
 
     X = src_embs[dico[:, 0].astype(np.int16)]
     Y = tgt_embs[dico[:, 1].astype(np.int16)]
@@ -71,124 +85,20 @@ def get_parallel_data(src_embs, tgt_embs, dico):
     return X, Y
 
 
-def load_sentence_data(file_name, model_name, word2id, max_sentences=1000):
-    'Read corpus form file and return list of np vectors'
-    nlp = spacy.load(model_name)
-    tokenizer = Tokenizer(nlp.vocab)
-
-    corpus = []
-    with open(file_name, 'r') as f:
-        for i, line in enumerate(f):
-            tokens = tokenizer(line.strip())
-            tokens = np.array([word2id.get(token.text.lower(), -1) for token in tokens])
-            corpus.append(tokens)
-            if i == max_sentences:
-                break
-    return corpus
-
-
-def compute_tf_idf(corpus, word2vec, id2word, vec_dim=300, mapper=np.ones(300), source=True, norm=True):
-    'Computes the tf-idf weight for the corpus'
-    N = len(corpus)
-    idfmap = defaultdict(int)
-    tf = defaultdict(int)
-    corpus_vec = np.zeros((N, vec_dim))
-
-    # Create idfmap
-    for sent_i, sentence in enumerate(corpus):
-        word_indices = np.unique(sentence)
-        for word_i in word_indices:
-            idfmap[word_i] += 1
-
-    # Create tf-idf weights
-    for sent_i, sentence in enumerate(corpus):
-        vec = np.zeros(vec_dim)
-        index, row_count = np.unique(sentence, return_counts=True)
-        index = index.astype(np.int32)
-        try:
-            f_max = np.max(row_count)
-        except ValueError:
-            corpus_vec[sent_i] = np.zeros(vec_dim)
-            continue
-
-        # For every unique word in sentence
-        for i, f in zip(index, row_count):
-            idf = np.log(N/idfmap[i])
-            tf = (1 + np.log(f))/(1 + np.log(f_max))
-            try:
-                if source:
-                    vec += tf*idf*word2vec[id2word[i]]@mapper
-                else:
-                    vec += tf*idf*word2vec[id2word[i]]
-            except KeyError:
-                continue
-
-        vec = vec[None]
-        if norm:
-            vec = normalize(vec, axis=1, norm='l2')
-        corpus_vec[sent_i] = vec
-
-    return corpus_vec
-
 def sigmoid(x):
-    'Sigmoid function'
+    """Sigmoid function"""
 
     return 1/(1 + np.exp(-x))
 
-
-def mahalanobis(p1, p2, global_cov):
-    '''Calculate mahalonbis metric b/w p1 and p2'''
-
-    return np.sqrt((p1 - p2)@global_cov@(p1 - p2).T)
-
-
-def cosal_vec(corpus, global_avg, global_cov, word2vec, id2word, word_dim=300, global_only=True, mapper=np.ones((300, 300)), source=True):
-    '''Calculate the CoSal weigthed sentence embeddings'''
-    N = len(corpus)
-    corpus_vec = np.zeros((N, word_dim))
-    for sent_i, sentence in enumerate(corpus):
-        # If sentence is empty, then just put a vector of zeros
-        if len(sentence) == 0:
-            corpus_vec[sent_i] = np.zeros(word_dim)
-            continue
-
-        # Creat array from word ids, if source language, apply mapper
-        vecs= np.array([word2vec.get(id2word.get(i, -1), np.zeros(word_dim)) for i in sentence])
-        if source:
-            vecs = vecs@mapper
-
-        print(vecs.shape)
-        # Create average vector, use global average if asked
-        if global_only:
-            avg_vec = global_avg
-        else:
-            avg_vec = normalize(np.mean(vecs, axis=0)[None], axis=1, norm='l2')
-
-        # Create array of normalized mahalanobis distances
-        distances = np.array([mahalanobis(vec, avg_vec, global_cov) for vec in vecs]
-        distances /= 2*np.mean(distances)
-
-        # Sigmoid of distances
-        if global_only:
-            weights = sigmoid(distances)
-        else:
-            weights = 1.9*(distances - 0.5) + 0.5
-
-        corpus_vec[sent_i] = np.sum(weights.reshape(weights.shape[0], -1)*vecs, axis=0)
-
-    return corpus_vec
-
-
-
-if __name__ == '__main__':
-    import sys
-
-    embs_en, word2vec_en, word2id_en, id2word_en = load_embs('../data/wiki.en.vec', int(sys.argv[1]))
-    global_avg, global_cov = np.mean(embs_en, axis=0), np.cov(embs_en, rowvar=0)
-
-
-    sys.exit(0)
-    corpus_en = load_sentence_data(sys.argv[1], 'en', word2id_en)
-    compute_tf_idf(corpus_en, word2vec_en, id2word_en)
-    sys.exit(0)
-    embs_de, word2vec_de, word2id_de, id2word_de = load_embs('../data/wiki.de.vec', int(sys.argv[1]))
+def str2bool(v):
+    """
+    thanks : https://stackoverflow.com/questions/15008758/parsing-boolean-values-with-argparse
+    :param v:
+    :return:
+    """
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')

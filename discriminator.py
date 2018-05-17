@@ -1,13 +1,11 @@
-import numpy as np
-import torch
 from torch import nn
-from torch.autograd import Variable
-
-dtype = torch.FloatTensor
 
 
 class Discriminator(nn.Module):
-    '''Discriminator NN for adversarial training'''
+    """
+    Discriminator NN for adversarial training.
+    Simple MLP with with one hidden layer and dropout.
+    """
     def __init__(self, input_dim, hidden_dim, num_hidden, input_DO, hidden_DO):
         super(Discriminator, self).__init__()
 

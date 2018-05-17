@@ -1,10 +1,10 @@
 import torch
-import numpy as np
 from torch.autograd import Variable
 import torch.nn.functional as F
 
-class Trainer():
-    def __init__(self, optim_fn, src_embs, tgt_embs, batch_size, smooth, discriminator, mapper):
+
+class Trainer:
+    def __init__(self, optim_fn, src_embs, tgt_embs, batch_size, smooth, discriminator, mapper, beta):
         self.optim_fn = optim_fn
         self.src_embs = src_embs
         self.tgt_embs = tgt_embs
@@ -14,10 +14,12 @@ class Trainer():
         self.mapper = mapper
         self.dis_optimizer = optim_fn(discriminator.parameters())
         self.map_optimizer = optim_fn(mapper.parameters())
-
+        self.beta = beta
 
     def _get_train_batch(self):
-        '''Get input training data'''
+        """
+        Get input training data.
+        """
         mask_src = torch.LongTensor(self.batch_size).random_(len(self.src_embs.weight))
         mask_tgt = torch.LongTensor(self.batch_size).random_(len(self.tgt_embs.weight))
 
@@ -33,7 +35,6 @@ class Trainer():
         Y = Variable(Y)
 
         return X, Y
-
 
     def dis_step(self):
         """
@@ -51,7 +52,6 @@ class Trainer():
 
         return loss.data.numpy()
 
-
     def mapping_step(self):
         """
         Mapping training step.
@@ -65,5 +65,15 @@ class Trainer():
         self.map_optimizer.zero_grad()
         loss.backward()
         self.map_optimizer.step()
+        self.orthogonalize()
 
         return loss.data.numpy()
+
+    def orthogonalize(self):
+        """
+        Orthogonalize the mapping.
+        """
+        if self.params.map_beta > 0:
+            W = self.mapping.weight.data
+            beta = self.params.map_beta
+            W.copy_((1 + beta) * W - beta * W.mm(W.transpose(0, 1).mm(W)))
