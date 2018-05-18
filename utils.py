@@ -3,8 +3,31 @@ import numpy as np
 from sklearn.preprocessing import normalize
 import pickle
 import argparse
+from keras.preprocessing.text import text_to_word_sequence
+from collections import Counter
 
 np.set_printoptions(edgeitems=5)
+
+
+def tokenize(text):
+    sent = text_to_word_sequence(text, filters='\'!"#$%&()*+,-./:;<=>?@[\\]^_`{|}~\t\n')
+    return sent
+
+
+def calc_word_probs(corpus):
+    """
+    Returns the estimated word probabilites of the corpus
+    :param corpus: list of sentences in the corpus, words in the form of ids
+    :return: c : dic of the form => word :  probability
+    """
+    c = Counter()
+    corpus = [word for sent in corpus for word in sent]
+    total_words = len(corpus)
+    c = Counter(corpus)
+
+    c = {word: count / total_words for word, count in c.items()}
+
+    return dict(c)
 
 
 def load_embs_bin(path):

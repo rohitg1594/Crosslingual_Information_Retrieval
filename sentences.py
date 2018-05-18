@@ -9,7 +9,8 @@ import logging as logging_master
 import pickle
 
 from utils import load_embs, load_embs_bin, str2bool
-from unsupervised_sentences import compute_tf_idf, load_sentence_data, cosal_vec, tough_baseline, load_sentence_bin
+from unsupervised_sentences import tf_idf, load_sentence_data, cosal_vec, tough_baseline,\
+                                   load_sentence_bin, simple_average
 from evaluation import eval_sents
 
 
@@ -31,15 +32,14 @@ parser.add_argument("--map_file",default="", help="file path of map from scr to 
 parser.add_argument("--max_vocab", default=200000, type=int, help="Maximum vocabulary size loaded from embeddings")
 parser.add_argument("--norm", default=1, type=int,  help="Normalize embeddings")
 # Sentence Retrieval
-parser.add_argument("--src_sents", default="data/europarl-v7.de-en.en", help="file path of source sentences")
-parser.add_argument("--tgt_sents", default="data/europarl-v7.de-en.de", help="file path of target sentences")
-parser.add_argument("--sent_bin", default=True, type=str2bool, help="whether to load sentence embeddings from pickle dump")
-parser.add_argument("--max_sents", default=1000, type=int, help="maximum number of sentences loaded from disk")
-parser.add_argument("--aggr_sents", default='tf-idf', choices=['CoSal', 'tf-idf', 'tough_baseline'],
+parser.add_argument("--sent_bin", default=False, type=str2bool, help="whether to load sentence embeddings from pickle dump")
+parser.add_argument("--max_sents", default=10000, type=int, help="maximum number of sentences loaded from disk")
+parser.add_argument("--aggr_sents", default='tf-idf', choices=['tf-idf',  'simple_average', 'CoSal', 'tough_baseline'],
                     help="type of sentence aggregation method")
 # Evaluation
 parser.add_argument("--eval_sents", default=10000, type=int, help="how many sentences to evaluate on")
-
+# Export
+parser.add_argument("--export", default=False, type=str2bool, help="whether to export loaded sentence corpus")
 
 
 args = parser.parse_args()
@@ -53,8 +53,8 @@ tgt_embs_file = os.path.join(args.data_dir, "embs", "wiki." + args.tgt_lang + ".
 assert os.path.isdir(args.data_dir)
 assert os.path.exists(src_embs_file)
 assert os.path.exists(tgt_embs_file)
-assert os.path.exists(args.map_file)
 
+# Word Embeddings
 if args.word_bin:
     src_path = os.path.join(args.data_dir, "embs", "{}-{}.pickle".format(args.src_lang, args.max_vocab))
     tgt_path = os.path.join(args.data_dir, "embs", "{}-{}.pickle".format(args.tgt_lang, args.max_vocab))
@@ -68,47 +68,13 @@ else:
     tgt_embs, tgt_word2vec, tgt_word2id, tgt_id2word = load_embs(tgt_embs_file, args.max_vocab, args.norm)
     logging.info('Loaded target embeddings')
 
-with open(args.map_file, 'rb') as f:
+# Mapper
+map_file = join(args.data_dir, "mapping", "{}-{}-200000-supervised.pickle".format(args.src_lang, args.tgt_lang))
+with open(map_file, 'rb') as f:
     W = pickle.load(f)
     logging.info("Loaded mapper")
 
-try:
-    if args.src_lang != 'zh':
-        src_nlp = spacy.load(args.src_lang)
-except IOError:
-    logging.error("You don't have {} spacy model on your machine".format(args.src_lang))
-    logging.error("Please download from the command line: python -m spacy download {}".format(args.src_lang))
-    logging.error("Exiting now!!!!")
-    sys.exit(1)
-
-try:
-    if args.tgt_lang != 'zh':
-        tgt_nlp = spacy.load(args.tgt_lang)
-except IOError:
-    logging.error("You don't have {} spacy model on your machine".format(args.tgt_lang))
-    logging.error("Please download from the command line: python -m spacy download {}".format(args.tgt_lang))
-    logging.error("Exiting now!!!!")
-    sys.exit(1)
-
-if args.src_lang == 'zh' or args.tgt_lang == 'zh':
-    try:
-        from spacy.lang.zh import Chinese
-    except IOError:
-        logging.error("You don't have jieba on your machine")
-        logging.error("Please download from the command line: pip install jieba")
-        logging.error("Exiting now!!!!")
-        sys.exit(1)
-
-if args.src_lang == 'zh':
-    src_chinese = True
-else:
-    src_chinese = False
-
-if args.tgt_lang == 'zh':
-    tgt_chinese = True
-else:
-    tgt_chinese = False
-
+# Sentence Corpora
 if args.sent_bin:
     src_path = os.path.join(args.data_dir, "europarl", "{}-{}.pickle".format(args.src_lang, args.max_sents))
     tgt_path = os.path.join(args.data_dir, "europarl", "{}-{}.pickle".format(args.tgt_lang, args.max_sents))
@@ -117,9 +83,20 @@ if args.sent_bin:
     tgt_corpus = load_sentence_bin(tgt_path)
     logging.info('Loaded target corpus')
 else:
-    src_corpus = load_sentence_data(args.src_sents, args.src_lang, src_word2id, max_sents=args.max_sents, chinese=src_chinese)
+    src_path = os.path.join(args.data_dir, "europarl",
+                            "europarl-v7.{}-{}.{}".format(args.src_lang, args.tgt_lang, args.src_lang))
+    if not os.path.exists(src_path):
+        src_path = os.path.join(args.data_dir, "europarl",
+                                "europarl-v7.{}-{}.{}".format(args.tgt_lang, args.src_lang, args.src_lang))
+    src_corpus = load_sentence_data(src_path, src_word2id, max_sents=args.max_sents)
     logging.info('Loaded source corpus')
-    tgt_corpus = load_sentence_data(args.tgt_sents, args.tgt_lang, tgt_word2id, max_sents=args.max_sents, chinese=tgt_chinese)
+
+    tgt_path = os.path.join(args.data_dir, "europarl",
+                            "europarl-v7.{}-{}.{}".format(args.src_lang, args.tgt_lang, args.tgt_lang))
+    if not os.path.exists(tgt_path):
+        tgt_path = os.path.join(args.data_dir, "europarl",
+                                "europarl-v7.{}-{}.{}".format(args.tgt_lang, args.src_lang, args.tgt_lang))
+    tgt_corpus = load_sentence_data(tgt_path, tgt_word2id, max_sents=args.max_sents)
     logging.info('Loaded target corpus')
 
 
@@ -133,13 +110,20 @@ if args.export:
     with open(f_name, 'wb') as f:
         pickle.dump(tgt_corpus, f)
 
+# Aggregation
 if args.aggr_sents == 'tf-idf':
-    src_vec = compute_tf_idf(src_corpus, src_word2vec, src_id2word, mapper=W, source=True)
-    tgt_vec = compute_tf_idf(tgt_corpus, tgt_word2vec, tgt_id2word, source=False)
+    src_vec = tf_idf(src_corpus, src_word2vec, src_id2word, mapper=W, source=True)
+    tgt_vec = tf_idf(tgt_corpus, tgt_word2vec, tgt_id2word, source=False)
+
+elif args.aggr_sents == 'simple_average':
+    src_vec = simple_average(src_corpus, src_word2vec, src_id2word, mapper=W, source=True)
+    tgt_vec = simple_average(tgt_corpus, tgt_word2vec, tgt_id2word, source=False)
 
 elif args.aggr_sents == 'CoSal':
-    src_vec = cosal_vec(src_embs, src_corpus, src_word2vec, src_id2word, mapper=W, emb_dim=args.vec_dim, global_only=False, source=True)
-    tgt_vec = cosal_vec(tgt_embs, tgt_corpus, tgt_word2vec, tgt_id2word, emb_dim=args.vec_dim, global_only=False, source=False)
+    src_vec = cosal_vec(src_embs, src_corpus, src_word2vec,
+                        src_id2word, mapper=W, emb_dim=args.emb_dim, global_only=True, source=True)
+    tgt_vec = cosal_vec(tgt_embs, tgt_corpus, tgt_word2vec,
+                        tgt_id2word, emb_dim=args.emb_dim, global_only=True, source=False)
 
 elif args.aggr_sents == 'tough_baseline':
     src_vec = tough_baseline(src_corpus, src_word2vec, src_id2word,
@@ -148,7 +132,11 @@ elif args.aggr_sents == 'tough_baseline':
     tgt_vec = tough_baseline(tgt_corpus, tgt_word2vec, tgt_id2word,
                              word_probs_path=join(args.data_dir, "europarl", "word-probs-{}.pickle".format(args.src_lang)),
                              emb_dim=args.emb_dim, source=False)
+else:
+    logging.error("aggregation method {} not supported!".format(args.aggr_sents))
+    sys.exit(1)
 
+# Evaluation
 index = faiss.IndexFlatIP(args.emb_dim)
 index.add(tgt_vec.astype(np.float32))
 D, I = index.search(src_vec.astype(np.float32), 10)

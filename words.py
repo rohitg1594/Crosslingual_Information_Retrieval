@@ -1,6 +1,5 @@
 import argparse
 import numpy as np
-import spacy
 import os
 import sys
 import pickle
@@ -34,7 +33,7 @@ parser.add_argument("--data_dir",
                     default="/home/rohit/Documents/Spring_2018/Information_retrieval/Project/Crosslingual_Information_Retrieval/data"
                     , help="directory path of data")
 parser.add_argument("--max_vocab", default=200000, type=int, help="Maximum vocabulary size loaded from embeddings")
-parser.add_argument("--ortho", default=False, type=str2bool,  help="Whether to orthognalize the mapping matrix")
+parser.add_argument("--ortho", default=True, type=str2bool,  help="Whether to orthognalize the mapping matrix")
 parser.add_argument("--beta", default=0.01, type=float, help="Beta parameter for orthognalization")
 parser.add_argument("--norm", default=1, type=int,  help="Normalize embeddings")
 # Unsupervised training
@@ -49,9 +48,9 @@ parser.add_argument("--evaluate_every", default="10", type=int, help="number of 
 # Word embedding method choice
 parser.add_argument("--method", default="supervised", help="supervised of unsupervised")
 # Evaluation
-parser.add_argument("--evaluate_mapping", default=False, type=str2bool, help="whether to evaluate mapping")
+parser.add_argument("--evaluate_mapping", default=True, type=str2bool, help="whether to evaluate mapping")
 # Export
-parser.add_argument("--export", default=False, type=str2bool, help="whether to export learned mapping matrix")
+parser.add_argument("--export", default=True, type=str2bool, help="whether to export learned mapping matrix")
 
 
 args = parser.parse_args()
@@ -98,33 +97,6 @@ if args.method == 'supervised':
     test_dict = os.path.join(args.data_dir, "dictionaries", args.src_lang + '-' + args.tgt_lang + '.5000-6500.txt')
     assert os.path.exists(train_dict)
     assert os.path.exists(test_dict)
-
-try:
-    if args.src_lang != 'zh':
-        src_nlp = spacy.load(args.src_lang)
-except IOError:
-    logging.error("You don't have {} spacy model on your machine".format(args.src_lang))
-    logging.error("Please download from the command line: python -m spacy download {}".format(args.src_lang))
-    logging.error("Exiting now!!!!")
-    sys.exit(1)
-
-try:
-    if args.tgt_lang != 'zh':
-        tgt_nlp = spacy.load(args.tgt_lang)
-except IOError:
-    logging.error("You don't have {} spacy model on your machine".format(args.tgt_lang))
-    logging.error("Please download from the command line: python -m spacy download {}".format(args.tgt_lang))
-    logging.error("Exiting now!!!!")
-    sys.exit(1)
-
-if args.src_lang == 'zh' or args.tgt_lang == 'zh':
-    try:
-        from spacy.lang.zh import Chinese
-    except IOError:
-        logging.error("You don't have jieba on your machine")
-        logging.error("Please download from the command line: pip install jieba")
-        logging.error("Exiting now!!!!")
-        sys.exit(1)
 
 
 if args.save_pickle:

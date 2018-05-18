@@ -12,7 +12,7 @@ def eval_wo(I_test, dico_test):
         for j in range(I_test.shape[0]):
             if dico_test[j,1] in I_test[j,:k]:
                 correct[i] += 1
-        print('Correct : {}, Top {} precision: {}'.format(correct[i], k, correct[i]/I_test.shape[0]))
+        print('Correct : {}, Top {} precision: {:.3f}'.format(correct[i], k, correct[i]/I_test.shape[0]))
 
     return correct
 
@@ -38,7 +38,7 @@ def eval_w(I_test, dico_test, src_word2id):
 
 
         dicts.append(dict(matches))
-        print('Correct : {}, Top {} precision: {}'.format(correct, k, correct/num_matches))
+        print('Correct : {}, Top {} precision: {:.3f}'.format(correct, k, correct/num_matches))
 
     return dicts
 
@@ -78,7 +78,7 @@ def eval_main(W, test_dict, src_word2id, tgt_word2id, src_embs, tgt_embs, src_id
                    pred = tgt_id2word[I_test[i, k]]
                    preds += pred + ', '
                preds = preds[:-2]
-               print('{:<15}|{:<15}|{}'.format(src_word, correct_trans, preds))
+               print('{:<15}|{:<15}|{:.3f}'.format(src_word, correct_trans, preds))
 
 
 def eval_sents(I, ks):
@@ -93,5 +93,5 @@ def eval_sents(I, ks):
     topks /= I.shape[0]
 
     for k, topk in zip(ks, topks):
-        print('Top {} precision : {}'.format(k, topk))
+        print('Top {} precision : {:.3f}'.format(k, topk))
 
