@@ -12,7 +12,7 @@ logging = logging_master.getLogger('corpus_stats')
 logging.setLevel(logging_master.INFO)
 
 DATA_PATH = "/home/rohit/Documents/Spring_2018/Information_retrieval/Project/Crosslingual_Information_Retrieval/data"
-methods = ['tf-idf', 'simple_average', 'tough_baseline']
+methods = ['tf-idf', 'simple_average', 'tough_baseline', 'CoSal']
 langs = ['es', 'fr', 'de', 'it', 'fi']
 f_out = open(join(DATA_PATH, "experiments", "sentences.txt"), 'a')
 

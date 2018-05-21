@@ -139,6 +139,6 @@ else:
 # Evaluation
 index = faiss.IndexFlatIP(args.emb_dim)
 index.add(tgt_vec.astype(np.float32))
-D, I = index.search(src_vec.astype(np.float32), 10)
+D, I = index.search(src_vec.astype(np.float32), 10000)
 
 eval_sents(I, [1, 5, 10])

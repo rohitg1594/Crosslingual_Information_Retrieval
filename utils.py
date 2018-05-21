@@ -113,6 +113,7 @@ def sigmoid(x):
 
     return 1/(1 + np.exp(-x))
 
+
 def str2bool(v):
     """
     thanks : https://stackoverflow.com/questions/15008758/parsing-boolean-values-with-argparse

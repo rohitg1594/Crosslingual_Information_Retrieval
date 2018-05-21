@@ -95,3 +95,15 @@ def eval_sents(I, ks):
     for k, topk in zip(ks, topks):
         print('Top {} precision : {:.3f}'.format(k, topk))
 
+    # potential_ks = 5*np.arange(3, 1000)
+    # eps = 10**-3
+    # matches = np.zeros(len(potential_ks))
+    # for j, k in enumerate(potential_ks):
+    #     for i in range(I.shape[0]):
+    #         if i in I[i,:k]:
+    #             matches[j] += 1
+    #     precision = matches[j]/I.shape[0]
+    #     print('Precision at {} is {}'.format(k, precision))
+    #     if 1 - precision < eps:
+    #         break
+    # print('Full matches at k = {}'.format(k))

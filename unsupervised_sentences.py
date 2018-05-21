@@ -1,10 +1,9 @@
-from keras.preprocessing.text import text_to_word_sequence
-from collections import defaultdict, Counter
+from collections import defaultdict
 import pickle
 
 from scipy.linalg import svd
 import numpy as np
-from sklearn.preprocessing import normalize
+from sklearn import preprocessing
 
 from utils import sigmoid, tokenize
 
@@ -48,11 +47,11 @@ def load_sentence_data(file_name, word2id, max_sents):
 def mahalanobis(p1, p2, global_cov):
     """Calculate mahalonbis metric b/w p1 and p2"""
 
-    return np.sqrt((p1 - p2)@global_cov@(p1 - p2).T)
+    return np.sqrt((p1 - p2) @ global_cov @ (p1 - p2).T)
 
 
 def cosal_vec(embs, corpus, word2vec, id2word, emb_dim=300, global_only=True, mapper=np.ones((300, 300)), eps=10**-6,
-              source=True):
+              source=True, norm=True):
     """
     Calculate the CoSal weight sentence embeddings
     Returns:
@@ -82,7 +81,7 @@ def cosal_vec(embs, corpus, word2vec, id2word, emb_dim=300, global_only=True, ma
         if global_only:
             avg_vec = global_avg
         else:
-            avg_vec = normalize(np.mean(vecs, axis=0)[None], axis=1, norm='l2')
+            avg_vec = preprocessing.normalize(np.mean(vecs, axis=0)[None], axis=1, norm='l2')
 
         # Create array of normalized mahalanobis distances
         distances = np.array([mahalanobis(vec, avg_vec, global_cov) for vec in vecs])
@@ -91,11 +90,18 @@ def cosal_vec(embs, corpus, word2vec, id2word, emb_dim=300, global_only=True, ma
         # Sigmoid of distances
         if global_only:
             weights = sigmoid(distances)
+            weights = weights / np.sum(weights)
         else:
             weights = 1.9*(distances - 0.5) + 0.5
 
         # Sum out and reshape the output
-        corpus_vec[sent_i] = np.sum(weights.reshape(weights.shape[0], -1)*vecs, axis=0)
+        vec = np.sum(weights[:, None]*vecs, axis=0)
+
+        # Normalize
+        if norm:
+            vec = preprocessing.normalize(vec[None], axis=1, norm='l2')
+
+        corpus_vec[sent_i] = vec
 
     return corpus_vec
 
@@ -144,7 +150,7 @@ def tough_baseline(corpus, word2vec, id2word, word_probs_path, emb_dim, a=10**-3
     corpus_vec = corpus_vec - corpus_vec@np.outer(u, u.T)
 
     if norm:
-        corpus_vec = normalize(corpus_vec, axis=1, norm='l2')
+        corpus_vec = preprocessing.normalize(corpus_vec, axis=1, norm='l2')
 
     return corpus_vec
 
@@ -191,7 +197,7 @@ def tf_idf(corpus, word2vec, id2word, emb_dim=300, mapper=np.ones(300), source=T
 
         vec = vec[None]
         if norm:
-            vec = normalize(vec, axis=1, norm='l2')
+            vec = preprocessing.normalize(vec, axis=1, norm='l2')
         corpus_vec[sent_i] = vec
 
     return corpus_vec
@@ -223,7 +229,7 @@ def simple_average(corpus, word2vec, id2word, emb_dim=300, mapper=np.ones(300), 
 
         vec = vec[None]
         if norm:
-            vec = normalize(vec, axis=1, norm='l2')
+            vec = preprocessing.normalize(vec, axis=1, norm='l2')
         corpus_vec[sent_idx] = vec
 
     return corpus_vec
