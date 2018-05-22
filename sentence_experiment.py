@@ -2,6 +2,15 @@ import subprocess
 import os
 from os.path import join
 import logging as logging_master
+from collections import defaultdict
+import pickle
+import numpy as np
+
+from utils import load_embs
+from unsupervised_sentences import load_sentence_data
+from utils import calc_word_probs
+
+MAX_SENTENCES = 300000
 
 my_env = os.environ.copy()
 my_env["PATH"] = "/home/rohit/anaconda3/envs/InfoRetrieval36"
@@ -13,8 +22,35 @@ logging.setLevel(logging_master.INFO)
 
 DATA_PATH = "/home/rohit/Documents/Spring_2018/Information_retrieval/Project/Crosslingual_Information_Retrieval/data"
 methods = ['tf-idf', 'simple_average', 'tough_baseline', 'CoSal']
-langs = ['es', 'fr', 'de', 'it', 'fi']
-f_out = open(join(DATA_PATH, "experiments", "sentences.txt"), 'a')
+f_out = open(join(DATA_PATH, "experiments", "sentences-2.txt"), 'a')
+langs = ['en', 'es']
+embs_path = {}
+embs_bin_path = {}
+sent_path = {}
+
+for lang in langs:
+    embs_path[lang] = join('data', 'embs', 'wiki.{}.vec'.format(lang))
+    embs_bin_path[lang] = join('data', 'embs', '{}-200000.pickle'.format(lang))
+
+    if lang == 'en':
+        sent_path[lang] = join('data', 'europarl', 'europarl-v7.de-en.en'.format(lang, lang))
+    else:
+        sent_path[lang] = join('data', 'europarl', 'europarl-v7.{}-en.{}'.format(lang, lang))
+
+for k, v in embs_path.items():
+
+    embs, word2vec, word2id, id2word = load_embs(v, 200000)
+    logging.info('Loaded word embeddings for {}'.format(k))
+
+    corpus = load_sentence_data(sent_path[k], word2id, MAX_SENTENCES)
+    logging.info('Loaded sentence corpora for {}'.format(k))
+
+    word_probs = calc_word_probs(corpus)
+    logging.info('Calculated word probabilities for {}'.format(k))
+
+    with open(join('data', "europarl", "word-probs-{}.pickle".format(k)), 'wb') as f:
+        pickle.dump(word_probs, f)
+    logging.info('Saved word probabilities for {}'.format(k))
 
 
 def experiment(src_lang, tgt_lang, method):
@@ -30,6 +66,8 @@ def experiment(src_lang, tgt_lang, method):
 
 
 for lang in langs:
+    if lang == 'en':
+        continue
     for method in methods:
         logging.info('Starting experiment {}, {}, {}'.format(lang, 'en', method))
         experiment(lang, 'en', method)

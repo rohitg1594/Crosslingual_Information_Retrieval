@@ -22,7 +22,7 @@ def load_sentence_bin(path):
 
 def load_sentence_data(file_name, word2id, max_sents):
     """
-    Tokenizes sent using nltk, maps the words to id using word2id and returns list of np
+    Tokenizes sent using keras, maps the words to id using word2id and returns list of np
     arrays of variable length.
     :param file_name: str :file path of data
     :param word2id: dict : mapping from word to id
@@ -106,7 +106,7 @@ def cosal_vec(embs, corpus, word2vec, id2word, emb_dim=300, global_only=True, ma
     return corpus_vec
 
 
-def tough_baseline(corpus, word2vec, id2word, word_probs_path, emb_dim, a=10**-3, source=True, mapper=np.ones(300),
+def tough_baseline(corpus, word2vec, id2word, word_probs_path, emb_dim=300, a=10**-3, source=True, mapper=np.ones(300),
                    norm=True):
     """
     Compute a simple unsupervised aggregation of word embeddings as described in:
@@ -163,10 +163,10 @@ def tf_idf(corpus, word2vec, id2word, emb_dim=300, mapper=np.ones(300), source=T
     """
 
     N = len(corpus)
-    idf_map = defaultdict(int)
     corpus_vec = np.zeros((N, emb_dim))
 
-    # Create idfmap
+    # Estimate the idf in the corpus
+    idf_map = defaultdict(int)
     for sent_i, sentence in enumerate(corpus):
         word_indices = np.unique(sentence)
         for word_i in word_indices:
@@ -185,7 +185,8 @@ def tf_idf(corpus, word2vec, id2word, emb_dim=300, mapper=np.ones(300), source=T
 
         # For every unique word in sentence
         for i, f in zip(index, row_count):
-            idf = np.log(N/idf_map[i])
+            idf = np.log(N/idf_map.get(i, 200))
+
             tf = (1 + np.log(f))/(1 + np.log(f_max))
             try:
                 if source:
