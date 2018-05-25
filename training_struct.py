@@ -16,7 +16,7 @@ TRAINING_SIZE = 10**6
 VALIDATION_SIZE = 5*10**3
 TEST_SIZE = 10**4
 
-training_f = join(DATA_PATH, "training", "training.tsv")
+training_f = join(DATA_PATH, "training", "new-training.tsv")
 
 new_f = open(training_f, 'w')
 new_f.close()
@@ -63,12 +63,12 @@ def create_files(lang1, lang2):
 
 
 lang_pairs = set()
-for lang1 in langs:
-    for lang2 in langs:
-        if lang1 == lang2:
-            continue
-        if (lang1, lang2) not in lang_pairs and (lang2, lang1) not in lang_pairs:
-            lang_pairs.add((lang1, lang2))
+for lang in langs:
+    if lang == 'en':
+        continue
+    lang_pairs.add((lang, 'en'))
+    lang_pairs.add(('en', lang))
+
 
 for lang_pair in lang_pairs:
     create_files(*lang_pair)

@@ -60,12 +60,14 @@ for lang in langs:
 logging.info('word embedings loaded')
 
 lang_pairs = set()
-for lang1 in langs:
-    for lang2 in langs:
-        if lang1 == lang2:
-            continue
-        if (lang1, lang2) not in lang_pairs and (lang2, lang1) not in lang_pairs:
-            lang_pairs.add((lang1, lang2))
+for lang in langs:
+    if lang == 'en':
+        continue
+    lang_pairs.add((lang, 'en'))
+    lang_pairs.add(('en', lang))
+
+for l in lang_pairs:
+    print(l)
 
 validation_sets = {}
 for lang_pair in lang_pairs:
@@ -117,7 +119,7 @@ def evaluate(model):
         eval_sents(I, [1, 5, 10])
 
 
-train_data = EncodingDataset(join(data_path, "training", "training.tsv"))
+train_data = EncodingDataset(join(data_path, "training", "new-training.tsv"))
 train_loader = DataLoader(train_data, batch_size=32, shuffle=True, num_workers=args.n)
 
 logging.info('data loader created')
