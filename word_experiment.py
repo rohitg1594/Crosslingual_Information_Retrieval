@@ -3,7 +3,7 @@ import os
 from os.path import join
 import logging as logging_master
 from utils import load_embs, calc_word_probs
-from unsupervised_sentences import load_sentence_data
+from aggregation import load_sentence_data
 import pickle
 
 my_env = os.environ.copy()

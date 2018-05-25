@@ -2,12 +2,10 @@ import subprocess
 import os
 from os.path import join
 import logging as logging_master
-from collections import defaultdict
 import pickle
-import numpy as np
 
 from utils import load_embs
-from unsupervised_sentences import load_sentence_data
+from aggregation import load_sentence_data
 from utils import calc_word_probs
 
 MAX_SENTENCES = 300000

@@ -8,29 +8,14 @@ from sklearn import preprocessing
 from utils import sigmoid, tokenize
 
 
-def load_sentence_bin(path):
-    """
-    Load sentence corpus from a precomputed pickle dump
-    :param path: file path of pickle dump
-    :return: list of variable size 1d np.arrays containing token ids in sentence
-    """
-    with open(path, 'rb') as f:
-        corpus = pickle.load(f)
-
-    return corpus
-
-
 def load_sentence_data(file_name, word2id, max_sents):
     """
     Tokenizes sent using keras, maps the words to id using word2id and returns list of np
     arrays of variable length.
     :param file_name: str :file path of data
     :param word2id: dict : mapping from word to id
-    :param chinese: bool : if set to true, uses special chinese tokenizer
-    :param export: bool: whether to export sentences as pickle file
-    :param bin : bool: load from existing pickle file
-    Returns:
-    corpus : list of numpy arrays containing word ids of size max_sentences
+    :param  max_sents: int : maximum number of sentences to load from disk
+    :return: corpus : list of numpy arrays containing word ids of size max_sentences
     """
     corpus = []
     with open(file_name, 'r') as f:
@@ -38,24 +23,37 @@ def load_sentence_data(file_name, word2id, max_sents):
             if i == max_sents:
                 break
             tokens = tokenize(line.strip())
-            token_ids = np.array([word2id.get(token.lower(), -1) for token in tokens])
+            token_ids = np.array([word2id.get(token.lower(), 0) for token in tokens])
             corpus.append(token_ids)
 
     return corpus
 
 
 def mahalanobis(p1, p2, global_cov):
-    """Calculate mahalonbis metric b/w p1 and p2"""
-
+    """
+    Calculate Mahalanobis metric b/w p1 and p2.
+    :param p1: np.ndarray :  point in distribution
+    :param p2: np.ndarray : point in distribution
+    :param global_cov: np.ndarray : global covariance of distribution
+    :return Mahalanobis metric as np.ndarray
+    """
     return np.sqrt((p1 - p2) @ global_cov @ (p1 - p2).T)
 
 
-def cosal_vec(embs, corpus, word2vec, id2word, emb_dim=300, global_only=True, mapper=np.ones((300, 300)), eps=10**-6,
-              source=True, norm=True):
+def cosal_vec(embs, corpus, word2vec, id2word, emb_dim=300, global_only=True, mapper=np.ones((300, 300)), source=True,
+              norm=True):
     """
-    Calculate the CoSal weight sentence embeddings
-    Returns:
-    numpy ndarray : corpus_vec of same dimension as corpus parameter.
+    Calculate the CoSal weight sentence embeddings.
+    :param: embs : np.ndarray : word embeddings of shape num_words \times word_emb_size
+    :param: corpus : list : list of np.ndarray containing word ids
+    :param: word2vec :  dict : map from word string to word embedding
+    :param: id2word : dict : map from wordid to word string
+    :param: emb_dim : int : dimention of word embeddings
+    :param: global_only: bool: whether to use only global distribution information while calculating avg vec and weights
+    :param: mapper : np.ndarray : maps from one src space to tgt space, only used if source set to True
+    :param: source : bool : whether to map word embeddings from src to tgt space, used with mapper
+    :param: norm : bool : whether to normalize the resultant sentence embeddings
+    :return: corpus_vec : np.ndarray : 2 d array of shape len(corpus) * emb_dim, containine sentence embeddings
     """
     if source:
         embs = embs@mapper
@@ -111,14 +109,15 @@ def tough_baseline(corpus, word2vec, id2word, word_probs_path, emb_dim=300, a=10
     """
     Compute a simple unsupervised aggregation of word embeddings as described in:
        https://openreview.net/pdf?id=SyK00v5xx
-    :param corpus:
-    :param word2vec:
-    :param id2word:
-    :param vec_dim:
-    :param a:
-    :param source: bool: if set to true apply mapper to word embeddings
-    :param mapper:
-    :return:
+    :param: corpus : list : list of np.ndarray containing word ids
+    :param: word2vec :  dict : map from word string to word embedding
+    :param: id2word : dict : map from wordid to word string
+    :param: word_probs_path : str : file path where word probabilities of the corpus are stored as pickle file
+    :param: emb_dim : int : dimention of word embeddings
+    :param: mapper : np.ndarray : maps from one src space to tgt space, only used if source set to True
+    :param: source : bool : whether to map word embeddings from src to tgt space, used with mapper
+    :param: norm : bool : whether to normalize the resultant sentence embeddings
+    :return: corpus_vec : np.ndarray : 2 d array of shape len(corpus) * emb_dim, containine sentence embeddings
     """
     # Estimate the probabilities of words in the corpus
     with open(word_probs_path, 'rb') as f:
@@ -159,7 +158,14 @@ def tf_idf(corpus, word2vec, id2word, emb_dim=300, mapper=np.ones(300), source=T
     """
     Computes the tf-idf weight for the corpus.
     Returns:
-    numpy ndarray : corpus_vec of same dimension as corpus parameter.
+    :param: corpus : list : list of np.ndarray containing word ids
+    :param: word2vec :  dict : map from word string to word embedding
+    :param: id2word : dict : map from wordid to word string
+    :param: emb_dim : int : dimention of word embeddings
+    :param: mapper : np.ndarray : maps from one src space to tgt space, only used if source set to True
+    :param: source : bool : whether to map word embeddings from src to tgt space, used with mapper
+    :param: norm : bool : whether to normalize the resultant sentence embeddings
+    :return: corpus_vec : np.ndarray : 2 d array of shape len(corpus) * emb_dim, containing sentence embeddings
     """
 
     N = len(corpus)
@@ -207,8 +213,14 @@ def tf_idf(corpus, word2vec, id2word, emb_dim=300, mapper=np.ones(300), source=T
 def simple_average(corpus, word2vec, id2word, emb_dim=300, mapper=np.ones(300), source=True, norm=True):
     """
     Computes sentence embeddings by taking simple average of word embeddings.
-    Returns:
-    numpy ndarray : corpus_vec of same dimension as corpus parameter.
+    :param: corpus : list : list of np.ndarray containing word ids
+    :param: word2vec :  dict : map from word string to word embedding
+    :param: id2word : dict : map from wordid to word string
+    :param: emb_dim : int : dimention of word embeddings
+    :param: mapper : np.ndarray : maps from one src space to tgt space, only used if source set to True
+    :param: source : bool : whether to map word embeddings from src to tgt space, used with mapper
+    :param: norm : bool : whether to normalize the resultant sentence embeddings
+    :return: corpus_vec : np.ndarray : 2 d array of shape len(corpus) * emb_dim, containing sentence embeddings
     """
 
     N = len(corpus)

@@ -1,12 +1,23 @@
 import os
-import numpy as np
-from sklearn.preprocessing import normalize
 import pickle
 import argparse
-from keras.preprocessing.text import text_to_word_sequence
 from collections import Counter
+import logging as logging_master
+
+import numpy as np
+from sklearn.preprocessing import normalize
+from scipy.linalg import svd
+from sklearn.cross_decomposition import CCA
+
+from keras.preprocessing.text import text_to_word_sequence
+
+logging_master.basicConfig(format='%(levelname)s %(asctime)s: %(message)s', level=logging_master.WARN)
+logging = logging_master.getLogger('wikinet')
+logging.setLevel(logging_master.INFO)
 
 np.set_printoptions(edgeitems=5)
+
+MAX_SENT_SIZE = 50
 
 
 def tokenize(text):
@@ -126,3 +137,46 @@ def str2bool(v):
         return False
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
+
+
+def procrustes(x, y):
+    """
+    Solve for linear mapping using procrustes solution.
+    """
+    m = x.T@y
+    u, s, v_T = svd(m, full_matrices=True )
+    w = u.dot(v_T)
+
+    return w
+
+
+def cca(x, y, num_components):
+    """
+    Transform x and y using sklearn's cross correlation analysis.
+    :param x: source language embeddings
+    :param y: target language embeddings
+    :param num_components: number of components to keep
+    :return: x_c and y_c transformed matrices
+    """
+    cca = CCA(n_components=num_components)
+    logging.info("Learning CCA decomposition")
+    cca.fit(x, y)
+    logging.info("CCA decomposion learned")
+
+    return cca.transform(x, y)
+
+
+def _pad_sent(sent):
+    if len(sent) < MAX_SENT_SIZE:
+        sent = np.pad(sent, (0, MAX_SENT_SIZE - len(sent)), 'constant')
+    else:
+        sent = sent[:MAX_SENT_SIZE]
+    return sent
+
+
+def create_padded_data(corpus):
+    out = np.zeros((len(corpus), MAX_SENT_SIZE))
+    for idx_sent, sent in enumerate(corpus):
+        out[idx_sent] = _pad_sent(sent)
+
+    return out

@@ -73,7 +73,7 @@ class Trainer:
         """
         Orthogonalize the mapping.
         """
-        if self.params.map_beta > 0:
-            W = self.mapping.weight.data
-            beta = self.params.map_beta
+        if self.beta > 0:
+            W = self.mapper.weight.data
+            beta = self.beta
             W.copy_((1 + beta) * W - beta * W.mm(W.transpose(0, 1).mm(W)))

@@ -1,17 +1,20 @@
 import argparse
 import numpy as np
 import os
-import sys
 import pickle
 import logging as logging_master
+import sys
+
+import faiss
 
 import torch.optim as optim
 import torch.nn as nn
 import torch
 
-from utils import load_embs, load_embs_bin, load_dictionary, get_parallel_data, str2bool
-from evaluation import eval_main
-from procrustes import procrustes
+from sklearn.cross_decomposition import CCA
+
+from utils import load_embs, load_embs_bin, load_dictionary, get_parallel_data, str2bool, procrustes
+from evaluation import eval_main, eval_w
 from discriminator import Discriminator
 from trainer import Trainer
 
@@ -30,7 +33,8 @@ parser.add_argument("--bin", default=False, type=str2bool, help="whether to load
 parser.add_argument("--emb_dim", default="300", type=int, help="dimension of embeddings")
 # Supervised training
 parser.add_argument("--data_dir",
-                    default="/home/rohit/Documents/Spring_2018/Information_retrieval/Project/Crosslingual_Information_Retrieval/data"
+                    default="/home/rohit/Documents/Spring_2018/Information_retrieval/Project/"
+                            "Crosslingual_Information_Retrieval/data"
                     , help="directory path of data")
 parser.add_argument("--max_vocab", default=200000, type=int, help="Maximum vocabulary size loaded from embeddings")
 parser.add_argument("--ortho", default=True, type=str2bool,  help="Whether to orthognalize the mapping matrix")
@@ -46,9 +50,8 @@ parser.add_argument("--batch_size", default="128", type=int, help="batch size")
 parser.add_argument("--num_epochs", default="10", type=int, help="number of epochs for adversarial training")
 parser.add_argument("--evaluate_every", default="10", type=int, help="number of epochs after which to evaluate")
 # Word embedding method choice
-parser.add_argument("--method", default="supervised", help="supervised of unsupervised")
-# Evaluation
-parser.add_argument("--evaluate_mapping", default=True, type=str2bool, help="whether to evaluate mapping")
+parser.add_argument("--method", choices=['procrustes', 'unsupervised', 'CCA'],
+                    default="procrustes", help="method to learn word embeddings")
 # Export
 parser.add_argument("--export", default=True, type=str2bool, help="whether to export learned mapping matrix")
 
@@ -70,7 +73,6 @@ num_hidden = args.num_hidden
 input_do = args.input_do
 hidden_do = args.hidden_do
 evaluate_every = args.evaluate_every
-evaluate_mapping = args.evaluate_mapping
 
 assert os.path.isdir(args.data_dir)
 src_embs_file = os.path.join(args.data_dir, "embs", "wiki." + args.src_lang + ".vec")
@@ -78,6 +80,7 @@ tgt_embs_file = os.path.join(args.data_dir, "embs", "wiki." + args.tgt_lang + ".
 
 assert os.path.exists(src_embs_file)
 assert os.path.exists(tgt_embs_file)
+
 if args.bin:
     src_path = os.path.join(args.data_dir, "embs", "{}-{}.pickle".format(args.src_lang, args.max_vocab))
     tgt_path = os.path.join(args.data_dir, "embs", "{}-{}.pickle".format(args.tgt_lang, args.max_vocab))
@@ -92,11 +95,11 @@ else:
     logging.info('Loaded target embeddings')
 
 
-if args.method == 'supervised':
-    train_dict = os.path.join(args.data_dir, "dictionaries", args.src_lang + '-' + args.tgt_lang + '.0-5000.txt')
-    test_dict = os.path.join(args.data_dir, "dictionaries", args.src_lang + '-' + args.tgt_lang + '.5000-6500.txt')
-    assert os.path.exists(train_dict)
-    assert os.path.exists(test_dict)
+# Dictionaries
+train_dict = os.path.join(args.data_dir, "dictionaries", args.src_lang + '-' + args.tgt_lang + '.0-5000.txt')
+test_dict = os.path.join(args.data_dir, "dictionaries", args.src_lang + '-' + args.tgt_lang + '.5000-6500.txt')
+assert os.path.exists(train_dict)
+assert os.path.exists(test_dict)
 
 
 if args.save_pickle:
@@ -108,18 +111,13 @@ if args.save_pickle:
     logging.info("embeddings saved in pickle dump")
 
 
-if args.method == 'supervised':
+if args.method == 'procrustes':
     dico = load_dictionary(train_dict, -1, src_word2id, tgt_word2id)
     X, Y = get_parallel_data(src_embs, tgt_embs, dico)
     W = procrustes(X, Y)
 
     if int(args.ortho):
         W = (1 + beta)*W - beta*(W@W.T)@W
-
-    if evaluate_mapping:
-        eval_main(W, test_dict, src_word2id, tgt_word2id, src_embs, tgt_embs, src_id2word, tgt_id2word, verbose=False)
-
-    logging.info('mapping matrix learned')
 
 elif args.method == 'unsupervised':
 
@@ -136,23 +134,66 @@ elif args.method == 'unsupervised':
     tgt_embs_torch = nn.Embedding(len(tgt_embs), emb_dim)
     tgt_embs_torch.weight.data.copy_(torch.from_numpy(tgt_embs.astype(np.float32)))
 
+    # We don't want to train the embeddings
+    src_embs_torch.weight.requires_grad = False
+    tgt_embs_torch.weight.requires_grad = False
+
     # Setup the trainer
-    trainer = Trainer(optimizer, src_embs_torch, tgt_embs_torch, batch_size, smooth, discriminator, mapper)
+    trainer = Trainer(optimizer, src_embs_torch, tgt_embs_torch, batch_size, smooth, discriminator, mapper, beta)
 
     # Training loop
     for i in range(num_epochs):
         num_iters = 0
+        batch = 0
         while num_iters <= len(src_embs):
             for j in range(5):
                 dis_loss = trainer.dis_step()
             mapper_loss = trainer.mapping_step()
 
             num_iters += batch_size
+            batch += 1
 
-            print("Epoch : {}, Disciminator Loss: {}, Mapper Loss : {}".format(i, dis_loss, mapper_loss))
-            if i%evaluate_every == 0:
+            if batch % 10 == 0:
+                logging.info("Epoch : {}, iter : {}, Disciminator Loss: {}, Mapper Loss : {}".format(i, batch,
+                                                                                                     dis_loss,
+                                                                                                     mapper_loss))
+            if batch % evaluate_every == 0:
+
                 W = mapper.weight.data.numpy()
-                eval_main(W)
+                eval_main(W, test_dict, src_word2id, tgt_word2id, src_embs, tgt_embs, src_id2word, tgt_id2word,
+                          verbose=False)
+
+elif args.method == 'CCA':
+    dico_train = load_dictionary(train_dict, -1, src_word2id, tgt_word2id)
+    dico_test = load_dictionary(test_dict, -1, src_word2id, tgt_word2id)
+
+    X_train, Y_train = get_parallel_data(src_embs, tgt_embs, dico_train)
+    X_test, Y_test = get_parallel_data(src_embs, tgt_embs, dico_test)
+    print(X_train.shape, Y_train.shape)
+    print(X_test.shape, Y_test.shape)
+
+    num_components = 80
+    cca = CCA(n_components=num_components)
+    logging.info("learning cca transformation")
+    cca.fit(X_train, Y_train)
+    logging.info("cca transformation learned")
+
+    X_test_c, Y_test_c = cca.transform(X_test, Y_test)
+
+    index = faiss.IndexFlatIP(num_components)
+    index.add(Y_test_c.astype(np.float32))
+    d, i = index.search(X_test_c.astype(np.float32), 20)
+
+    dicts = eval_w(i, dico_test, src_id2word)
+    sys.exit(1)
+
+
+
+
+
+logging.info('mapping matrix learned')
+logging.info('evaluating final mapping')
+eval_main(W, test_dict, src_word2id, tgt_word2id, src_embs, tgt_embs, src_id2word, tgt_id2word, verbose=False)
 
 if args.export:
     f_name = os.path.join(args.data_dir, "mapping", '{}-{}-{}-{}.pickle'.format(args.src_lang, args.tgt_lang,
