@@ -39,7 +39,7 @@ args = parser.parse_args()
 
 
 use_cuda = torch.cuda.is_available()
-data_path = args.data_path
+data_path = "/dev/shm/rogupta/info/data"
 
 LOG_FILENAME = join(data_path, 'log', 'wikinet.log')
 logging_master.basicConfig(format='%(levelname)s %(asctime)s: %(message)s', level=logging_master.WARN)
