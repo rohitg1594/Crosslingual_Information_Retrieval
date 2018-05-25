@@ -24,6 +24,7 @@ from dataset import EncodingDataset
 from encoder import Encoder
 
 torch.set_printoptions(threshold=1000)
+np.set_printoptions(threshold=1000)
 
 use_cuda = torch.cuda.is_available()
 DATA_PATH = "/home/rohit/Documents/Spring_2018/Information_retrieval/Project/Crosslingual_Information_Retrieval/data"
@@ -44,7 +45,7 @@ for lang in langs:
             mapper = pickle.load(f)
         embs = embs @ mapper
     lang2embs[lang] = embs
-
+logging.info('word embedings loaded')
 
 lang_pairs = set()
 for lang1 in langs:
@@ -58,21 +59,29 @@ validation_sets = {}
 for lang_pair in lang_pairs:
     lang1, lang2 = lang_pair
     validation_f = join(DATA_PATH, "training", "{}-{}.validation".format(lang1, lang2))
-    i1 = np.zeros((5000, 50), dtype=np.int32)
-    i2 = np.zeros((5000, 50), dtype=np.int32)
+    i1 = torch.zeros(5000, 50).type(torch.LongTensor)
+    i2 = torch.zeros(5000, 50).type(torch.LongTensor)
 
     with open(validation_f, 'r') as f:
         for idx, line in enumerate(f):
             line = line.strip()
             try:
-                target, source = line.split('\t')
+                parts = line.split('\t')
+                lang1_str = parts[0]
+                lang2_str = parts[1]
             except ValueError:
                 continue
 
-            i1[idx] = np.fromstring(source, sep=',', dtype=np.int)
-            i2[idx] = np.fromstring(target, sep=',', dtype=np.int)
+            lang1_vec = np.fromstring(lang1_str, sep=',')
+            lang2_vec = np.fromstring(lang2_str, sep=',')
+            lang1_ten = torch.from_numpy(lang1_vec)
+            lang2_ten = torch.from_numpy(lang2_vec)
+            lang1_ten, lang2_ten = lang1_ten.type(torch.LongTensor), lang2_ten.type(torch.LongTensor)
 
-    validation_sets[lang_pair] = i1, i2
+            i1[idx], i2[idx] = lang1_ten, lang2_ten
+
+    validation_sets[lang_pair] = Variable(i1), Variable(i2)
+
 
 
 def evaluate(model):
@@ -81,24 +90,23 @@ def evaluate(model):
     bs = 32
     for lang_pair in eval_lang_pairs:
         lang1, lang2 = lang_pair
-        i1, i2 = validation_sets[lang_pair]
+        sents_1, sents_2 = validation_sets[lang_pair]
 
-        i1 = Variable(torch.from_numpy(i1))
-        i2 = Variable(torch.from_numpy(i2))
+        lang1_list = [lang1 for _ in range(5000)]
+        lang2_list = [lang2 for _ in range(5000)]
 
-        lang1_out, lang2_out = encoder((lang1, i1)), encoder((lang2, i2))
-        lang1_out, lang2_out = lang1_out.numpy(), lang2_out.numpy()
+        lang1_out, lang2_out = encoder((lang1_list, sents_1)), encoder((lang2_list, sents_2))
+        lang1_out, lang2_out = lang1_out.data.numpy(), lang2_out.data.numpy()
 
         index = faiss.IndexFlatIP(300)
         index.add(lang2_out.astype(np.float32))
         D, I = index.search(lang1_out.astype(np.float32), 20)
 
+        print(I)
+
         logging.info("validation results for language pair - {}".format(lang_pair))
         eval_sents(I, [1, 5, 10])
 
-
-logging.info('embedding matrices created')
-#data_path = "/dev/shm/rogupta/data"
 
 train_data = EncodingDataset(join(data_path, "training", "training.tsv"))
 train_loader = DataLoader(train_data, batch_size=32, shuffle=True, num_workers=2)
@@ -112,8 +120,10 @@ if use_cuda:
 
 optimizer = optim.Adam(filter(lambda p: p.requires_grad, encoder.parameters()))
 
+
 def mse_loss(input, target):
     return torch.sum((input - target)**2) / input.data.nelement()
+
 
 losses = []
 logging.info('starting training')
@@ -139,10 +149,10 @@ for epoch in range(20):
 
         if i % 1000 == 0:
             logging.info('Epoch - {}, iter - {} - Loss - {}'.format(epoch, i, loss.data[0]))
-        # if i % 5000 == 0:
-        #     evaluate(encoder)
+        if i % 10000 == 0:
+            evaluate(encoder)
 
     torch.save(encoder
-               .state_dict(), join(data_path, 'models', "to-en-{}-comp".format(epoch)))
+               .state_dict(), join(data_path, 'models', "encoder-{}-comp".format(epoch)))
 
 print('Finished Training')

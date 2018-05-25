@@ -21,9 +21,10 @@ class Encoder(nn.Module):
         self.lang2embs = {}
         for lang, embs in lang2embs.items():
             vocab, dim = embs.shape
-            self.embeddings = nn.Embedding(vocab, dim, padding_idx=0, sparse=True)
-            self.embeddings.weight.data.copy_(torch.from_numpy(embs))
-            self.embeddings.weight.requires_grad = False
+            embeddings = nn.Embedding(vocab, dim, padding_idx=0, sparse=True)
+            embeddings.weight.data.copy_(torch.from_numpy(embs))
+            embeddings.weight.requires_grad = False
+            self.lang2embs[lang] = embeddings
 
         self.relu = nn.ReLU()
         self.lin1 = nn.Linear(300, 300)
@@ -41,15 +42,22 @@ class Encoder(nn.Module):
     def forward(self, inputs):
         """
         """
-        lang, batch = inputs
+        langs, sents = inputs
         try:
-            embs = self.lang2embs[lang](batch)
+            embs = torch.zeros(sents.shape[0], sents.shape[1], 300)
+        except AttributeError as e:
+            print('here', e)
+        try:
+            for idx, lang in enumerate(langs):
+                embs[idx] = self.lang2embs[lang](sents[idx])
         except RuntimeError as e:
-            print(batch, e)
+            print(langs, sents, e)
 
         output = F.normalize(embs.sum(dim=1), dim=1)
 
         output = self.relu(self.batn2(self.lin2(self.relu(self.batn1(self.lin1(output))))))
+
+        output = F.normalize(output, dim=1)
 
         return output
 

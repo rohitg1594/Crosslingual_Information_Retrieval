@@ -1,7 +1,6 @@
 import argparse
 import faiss
 import numpy as np
-import spacy
 import os
 from os.path import join
 import sys

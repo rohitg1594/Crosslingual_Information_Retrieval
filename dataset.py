@@ -1,10 +1,16 @@
 import numpy as np
 import random
 
+import logging as logging_master
+
 import torch
 from torch.autograd import Variable
 
 use_cuda = torch.cuda.is_available()
+
+logging_master.basicConfig(format='%(levelname)s %(asctime)s: %(message)s', level=logging_master.WARN)
+logging = logging_master.getLogger('corpus_stats')
+logging.setLevel(logging_master.INFO)
 
 
 def list_line_locations(filename):
@@ -27,35 +33,37 @@ class EncodingDataset(object):
 
         self.training_file = training_file
         self.index = list_line_locations(self.training_file)
+        logging.info("Size of training file : {}".format(len(self.index)))
 
     def __getitem__(self, index):
         if isinstance(index, slice):
             return [self[idx] for idx in range(index.start or 0, index.stop or len(self), index.step or 1)]
 
-        if index in self.index:
+        with open(self.training_file, 'r') as f:
+            f.seek(self.index[index])
+            line = f.readline().strip()
+            try:
+                parts = line.split('\t')
+                lang1, lang1_str = parts[0].split('@')
+                lang2, lang2_str = parts[1].split('@')
+            except ValueError:
+                logging.warning("line split error - {}".format(index))
+                new_index = random.randint(0, len(self.index))
+                return self.__getitem__(new_index)
 
-            with open(self.training_file, 'r') as f:
-                f.seek(self.index[index])
-                line = f.readline().strip()
-                try:
-                    target, source = line.split('\t')
-                except ValueError:
-                    # print('TAB ERROR- {} {} {} {} {}'.format(index,index, line, shard_no, line_no))
-                    new_index = random.randint(0, len(self.index))
-                    return self.__getitem__(new_index)
+            lang1_vec = np.fromstring(lang1_str, sep=',')
+            lang2_vec = np.fromstring(lang2_str, sep=',')
+            lang1_ten = torch.from_numpy(lang1_vec)
+            lang2_ten = torch.from_numpy(lang2_vec)
+            lang1_ten, lang2_ten = lang1_ten.type(torch.LongTensor), lang2_ten.type(torch.LongTensor)
 
-                target = np.fromstring(target, sep=',', dtype=np.int)
-                source = np.fromstring(source, sep=',', dtype=np.int)
+            lang1_ten = Variable(lang1_ten)
+            lang2_ten = Variable(lang2_ten)
 
-                target = Variable(torch.from_numpy(target))
-                source = Variable(torch.from_numpy(source))
 
-            return source, target
-
-        else:
-            # print('MASTER INDEX ERROR - {}'.format(index))
-            new_index = random.randint(0, self.len_ent)
-            return self.__getitem__(new_index)
+        return lang1, lang1_ten, lang2, lang2_ten
 
     def __len__(self):
         return len(self.index)
+
+
