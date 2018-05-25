@@ -115,7 +115,7 @@ def eval_sents(I, ks):
     topks /= I.shape[0]
 
     for k, topk in zip(ks, topks):
-        print('Top {} precision : {:.3f}'.format(k, topk))
+        print('Top {} precision : {:.7f}'.format(k, topk))
 
     # Mean Reciprocal Rank
     ranks = []
