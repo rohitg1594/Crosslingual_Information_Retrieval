@@ -26,22 +26,34 @@ from encoder import Encoder
 torch.set_printoptions(threshold=1000)
 np.set_printoptions(threshold=1000)
 
-use_cuda = torch.cuda.is_available()
-DATA_PATH = "/home/rohit/Documents/Spring_2018/Information_retrieval/Project/Crosslingual_Information_Retrieval/data"
+parser = argparse.ArgumentParser(description="Cross Lingual Sentence Retrieval - Learn Word Embedding Mapping",
+                                 formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+# data path
+parser.add_argument("--data_path",
+                    default="/home/rohit/Documents/Spring_2018/Information_retrieval/Project/Crosslingual_Information_Retrieval/data",
+                    help="data path")
+parser.add_argument("--n", default=8, type=int, help="num_cores")
 
-data_path = "/home/rohit/Documents/Spring_2018/Information_retrieval/Project/Crosslingual_Information_Retrieval/data"
+args = parser.parse_args()
+
+
+
+use_cuda = torch.cuda.is_available()
+data_path = args.data_path
+
 LOG_FILENAME = join(data_path, 'log', 'wikinet.log')
 logging_master.basicConfig(format='%(levelname)s %(asctime)s: %(message)s', level=logging_master.WARN)
 logging = logging_master.getLogger('count link structure of wikipedia')
 logging.setLevel(logging_master.INFO)
 logging.info('GPU is Available : {}'.format(use_cuda))
+logging.info("DATA PATH - {}".format(args.data_path))
 
 langs = ['es', 'de', 'fr', 'fi', 'it', 'en']
 lang2embs = {}
 for lang in langs:
     embs, _, _, _, = load_embs_bin(join(data_path, 'embs', '{}-200000.pickle'.format(lang)))
     if lang != "en":
-        with open(join(DATA_PATH, "mapping", "{}-en-200000-supervised.pickle".format(lang)), 'rb') as f:
+        with open(join(data_path, "mapping", "{}-en-200000-supervised.pickle".format(lang)), 'rb') as f:
             mapper = pickle.load(f)
         embs = embs @ mapper
     lang2embs[lang] = embs
@@ -58,7 +70,7 @@ for lang1 in langs:
 validation_sets = {}
 for lang_pair in lang_pairs:
     lang1, lang2 = lang_pair
-    validation_f = join(DATA_PATH, "training", "{}-{}.validation".format(lang1, lang2))
+    validation_f = join(data_path, "training", "{}-{}.validation".format(lang1, lang2))
     i1 = torch.zeros(5000, 50).type(torch.LongTensor)
     i2 = torch.zeros(5000, 50).type(torch.LongTensor)
 
@@ -87,7 +99,6 @@ for lang_pair in lang_pairs:
 def evaluate(model):
     model.eval()
     eval_lang_pairs = random.sample(lang_pairs, 2)
-    bs = 32
     for lang_pair in eval_lang_pairs:
         lang1, lang2 = lang_pair
         sents_1, sents_2 = validation_sets[lang_pair]
@@ -102,14 +113,12 @@ def evaluate(model):
         index.add(lang2_out.astype(np.float32))
         D, I = index.search(lang1_out.astype(np.float32), 20)
 
-        print(I)
-
         logging.info("validation results for language pair - {}".format(lang_pair))
         eval_sents(I, [1, 5, 10])
 
 
 train_data = EncodingDataset(join(data_path, "training", "training.tsv"))
-train_loader = DataLoader(train_data, batch_size=32, shuffle=True, num_workers=2)
+train_loader = DataLoader(train_data, batch_size=32, shuffle=True, num_workers=args.n)
 
 logging.info('data loader created')
 
