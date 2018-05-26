@@ -19,9 +19,9 @@ logging = logging_master.getLogger('corpus_stats')
 logging.setLevel(logging_master.INFO)
 
 DATA_PATH = "/home/rohit/Documents/Spring_2018/Information_retrieval/Project/Crosslingual_Information_Retrieval/data"
-methods = ['tf-idf', 'simple_average', 'tough_baseline', 'CoSal']
-f_out = open(join(DATA_PATH, "experiments", "sentences-2.txt"), 'a')
-langs = ['en', 'es']
+methods = ['tf-idf', 'simple_average', 'tough_baseline', 'CoSal', 'max_pool']
+f_out = open(join(DATA_PATH, "experiments", "sentences.txt"), 'a')
+langs = ['en', 'es', 'de', 'fr', 'fi', 'it']
 embs_path = {}
 embs_bin_path = {}
 sent_path = {}
@@ -53,7 +53,7 @@ for k, v in embs_path.items():
 
 def experiment(src_lang, tgt_lang, method):
     call_str = "/home/rohit/anaconda3/envs/InfoRetrieval36/bin/python "
-    call_str += "sentences.py --src_lang {} --tgt_lang {} --aggr_sents {}".format(src_lang, tgt_lang, method)
+    call_str += "sentences.py --src_lang {} --tgt_lang {} --method {}".format(src_lang, tgt_lang, method)
     try:
         out = subprocess.check_output(call_str.split(), stderr=subprocess.STDOUT, env=my_env, cwd=my_cwd)
         f_out.write('{}-{}\n'.format(src_lang, tgt_lang))

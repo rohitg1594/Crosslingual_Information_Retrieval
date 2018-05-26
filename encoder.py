@@ -42,22 +42,30 @@ class Encoder(nn.Module):
     def forward(self, inputs):
         """
         """
-        langs, sents = inputs
+        langs_1, sents_1, langs_2, sents_2 = inputs
         try:
-            embs = torch.zeros(sents.shape[0], sents.shape[1], 300)
+            x1 = torch.zeros(sents_1.shape[0], sents_1.shape[1], 300)
+            x2 = torch.zeros(sents_1.shape[0], sents_1.shape[1], 300)
         except AttributeError as e:
             print('here', e)
         try:
-            for idx, lang in enumerate(langs):
-                embs[idx] = self.lang2embs[lang](sents[idx])
+            for idx, lang in enumerate(langs_1):
+                x1[idx] = self.lang2embs[lang](sents_1[idx])
+                x2[idx] = self.lang2embs[langs_2[idx]](sents_2[idx])
+
         except RuntimeError as e:
-            print(langs, sents, e)
+            print(langs_1, sents_1, langs_2, langs_2, e)
 
-        output = F.normalize(embs.sum(dim=1), dim=1)
+        x1 = x1.sum(dim=1).squeeze_(dim=1)
+        x2 = x2.sum(dim=1).squeeze_(dim=1)
 
-        output = self.relu(self.batn2(self.lin2(self.relu(self.batn1(self.lin1(output))))))
+        o1 = self.relu(self.batn2(self.lin2(self.relu(self.batn1(self.lin1(x1))))))
+        o2 = self.relu(self.batn2(self.lin2(self.relu(self.batn1(self.lin1(x2))))))
 
-        output = F.normalize(output, dim=1)
+        cor = torch.sum(o1 * o2, 1, keepdim=True)
+        nxt = torch.cat([o1, o2, torch.abs(o1 - o2), cor], 1)
+        score = self.lin5(self.relu(self.batn4(self.lin4(self.relu(self.batn3(self.lin3(nxt)))))))
 
-        return output
+        prob = F.sigmoid(score)
+        return prob, o1, o2
 

@@ -8,7 +8,7 @@ import logging as logging_master
 import pickle
 
 from utils import load_embs, load_embs_bin, str2bool
-from aggregation import tf_idf, load_sentence_data, cosal_vec, tough_baseline, simple_average
+from aggregation import tf_idf, load_sentence_data, cosal_vec, tough_baseline, simple_average, max_pool
 from evaluation import eval_sents
 
 
@@ -31,7 +31,8 @@ parser.add_argument("--max_vocab", default=200000, type=int, help="Maximum vocab
 parser.add_argument("--norm", default=1, type=int,  help="Normalize embeddings")
 # Sentence Retrieval
 parser.add_argument("--max_sents", default=10000, type=int, help="maximum number of sentences loaded from disk")
-parser.add_argument("--aggr_sents", default='tf-idf', choices=['tf-idf',  'simple_average', 'CoSal', 'tough_baseline'],
+parser.add_argument("--method", default='tf-idf', choices=['tf-idf',  'simple_average', 'CoSal', 'tough_baseline',
+                                                           'max_pool'],
                     help="type of sentence aggregation method")
 # Evaluation
 parser.add_argument("--eval_sents", default=10000, type=int, help="how many sentences to evaluate on")
@@ -88,27 +89,31 @@ logging.info('Loaded target corpus')
 
 
 # Aggregation
-if args.aggr_sents == 'tf-idf':
+if args.method == 'tf-idf':
     src_vec = tf_idf(src_corpus, src_word2vec, src_id2word, mapper=W, source=True)
     tgt_vec = tf_idf(tgt_corpus, tgt_word2vec, tgt_id2word, source=False)
 
-elif args.aggr_sents == 'simple_average':
+elif args.method == 'simple_average':
     src_vec = simple_average(src_corpus, src_word2vec, src_id2word, mapper=W, source=True)
     tgt_vec = simple_average(tgt_corpus, tgt_word2vec, tgt_id2word, source=False)
 
-elif args.aggr_sents == 'CoSal':
+elif args.method == 'CoSal':
     src_vec = cosal_vec(src_embs, src_corpus, src_word2vec,
                         src_id2word, mapper=W, emb_dim=args.emb_dim, global_only=True, source=True)
     tgt_vec = cosal_vec(tgt_embs, tgt_corpus, tgt_word2vec,
                         tgt_id2word, emb_dim=args.emb_dim, global_only=True, source=False)
 
-elif args.aggr_sents == 'tough_baseline':
+elif args.method == 'tough_baseline':
     src_vec = tough_baseline(src_corpus, src_word2vec, src_id2word,
                              word_probs_path=join(args.data_dir, "europarl", "word-probs-{}.pickle".format(args.src_lang)),
                              emb_dim=args.emb_dim, mapper=W, source=True)
     tgt_vec = tough_baseline(tgt_corpus, tgt_word2vec, tgt_id2word,
                              word_probs_path=join(args.data_dir, "europarl", "word-probs-{}.pickle".format(args.src_lang)),
                              emb_dim=args.emb_dim, source=False)
+
+elif args.method == 'max_pool':
+    src_vec = max_pool(src_corpus, src_word2vec, src_id2word, mapper=W, source=True)
+    tgt_vec = max_pool(tgt_corpus, tgt_word2vec, tgt_id2word, source=False)
 else:
     logging.error("aggregation method {} not supported!".format(args.aggr_sents))
     sys.exit(1)
@@ -117,5 +122,12 @@ else:
 index = faiss.IndexFlatIP(args.emb_dim)
 index.add(tgt_vec.astype(np.float32))
 D, I = index.search(src_vec.astype(np.float32), 10000)
+
+# predictions = I[0]
+# print(predictions)
+# for sent_i in predictions[:10]:
+#     sent = tgt_corpus[sent_i]
+#     pred_str = ' '.join([tgt_id2word[word] for word in sent])
+#     print(pred_str)
 
 eval_sents(I, [1, 5, 10])

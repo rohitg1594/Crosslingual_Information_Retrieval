@@ -39,7 +39,8 @@ args = parser.parse_args()
 
 
 use_cuda = torch.cuda.is_available()
-data_path = "/dev/shm/rogupta/info/data"
+#data_path = "/dev/shm/rogupta/info/data"
+data_path = args.data_path
 
 LOG_FILENAME = join(data_path, 'log', 'wikinet.log')
 logging_master.basicConfig(format='%(levelname)s %(asctime)s: %(message)s', level=logging_master.WARN)
@@ -108,15 +109,22 @@ def evaluate(model):
         lang1_list = [lang1 for _ in range(5000)]
         lang2_list = [lang2 for _ in range(5000)]
 
-        lang1_out, lang2_out = encoder((lang1_list, sents_1)), encoder((lang2_list, sents_2))
+        _, lang1_out, lang2_out = encoder((lang1_list, sents_1, lang2_list, sents_2))
         lang1_out, lang2_out = lang1_out.data.numpy(), lang2_out.data.numpy()
 
         index = faiss.IndexFlatIP(300)
         index.add(lang2_out.astype(np.float32))
-        D, I = index.search(lang1_out.astype(np.float32), 20)
+        D_ip, I_ip = index.search(lang1_out.astype(np.float32), 20)
 
-        logging.info("validation results for language pair - {}".format(lang_pair))
-        eval_sents(I, [1, 5, 10])
+        logging.info("validation results for language pair - inner-product - {}".format(lang_pair))
+        eval_sents(I_ip, [1, 5, 10])
+
+        index = faiss.IndexFlatL2(300)
+        index.add(lang2_out.astype(np.float32))
+        D_l2, I_l2 = index.search(lang1_out.astype(np.float32), 20)
+
+        logging.info("validation results for language pair - L2 - {}".format(lang_pair))
+        eval_sents(I_l2, [1, 5, 10])
 
 
 train_data = EncodingDataset(join(data_path, "training", "new-training.tsv"))
@@ -132,9 +140,11 @@ if use_cuda:
 optimizer = optim.Adam(filter(lambda p: p.requires_grad, encoder.parameters()))
 
 
-def mse_loss(input, target):
-    return torch.sum((input - target)**2) / input.data.nelement()
+def cosine_loss(input, target):
+    return 1 - torch.sum(input * target)
 
+
+loss_fn = torch.nn.BCELoss()
 
 losses = []
 logging.info('starting training')
@@ -145,11 +155,10 @@ for epoch in range(20):
     tic = time.time()
     for i, data in enumerate(train_loader, 0):
 
-        lang1, lang1_sents, lang2, lang2_sents = data
+        lang1, lang1_sents, lang2, lang2_sents, label = data
         optimizer.zero_grad()
-        lang1_out, lang2_out = encoder((lang1, lang1_sents)), encoder((lang2, lang2_sents))
-
-        loss = mse_loss(lang1_out, lang2_out)
+        prediction, _, _ = encoder((lang1, lang1_sents, lang2, lang2_sents))
+        loss = loss_fn(prediction, label)
 
         loss.backward()
 
@@ -160,10 +169,10 @@ for epoch in range(20):
 
         if i % 1000 == 0:
             logging.info('Epoch - {}, iter - {} - Loss - {}'.format(epoch, i, loss.data[0]))
-        if i % 10000 == 0:
+        if i % 25000 == 0:
             evaluate(encoder)
 
     torch.save(encoder
-               .state_dict(), join(data_path, 'models', "encoder-{}-comp".format(epoch)))
+               .state_dict(), join(data_path, 'models', "encoder-cosine2-{}-comp".format(epoch)))
 
 print('Finished Training')

@@ -55,6 +55,7 @@ def cosal_vec(embs, corpus, word2vec, id2word, emb_dim=300, global_only=True, ma
     :param: norm : bool : whether to normalize the resultant sentence embeddings
     :return: corpus_vec : np.ndarray : 2 d array of shape len(corpus) * emb_dim, containine sentence embeddings
     """
+    eps = 10 ** -6
     if source:
         embs = embs@mapper
     global_avg, global_cov = np.mean(embs, axis=0), np.cov(embs, rowvar=False)
@@ -246,3 +247,48 @@ def simple_average(corpus, word2vec, id2word, emb_dim=300, mapper=np.ones(300), 
         corpus_vec[sent_idx] = vec
 
     return corpus_vec
+
+
+def max_pool(corpus, word2vec, id2word, emb_dim=300, mapper=np.ones(300), source=True, norm=True):
+    """
+    Computes sentence embeddings by taking max_pooling of word embeddings.
+    :param: corpus : list : list of np.ndarray containing word ids
+    :param: word2vec :  dict : map from word string to word embedding
+    :param: id2word : dict : map from wordid to word string
+    :param: emb_dim : int : dimention of word embeddings
+    :param: mapper : np.ndarray : maps from one src space to tgt space, only used if source set to True
+    :param: source : bool : whether to map word embeddings from src to tgt space, used with mapper
+    :param: norm : bool : whether to normalize the resultant sentence embeddings
+    :return: corpus_vec : np.ndarray : 2 d array of shape len(corpus) * emb_dim, containing sentence embeddings
+    """
+
+    N = len(corpus)
+    corpus_vec = np.zeros((N, emb_dim))
+
+    # Create tf-idf weights
+    for sent_idx, sentence in enumerate(corpus):
+
+        if len(sentence) == 0:
+            corpus_vec[sent_idx] = np.zeros(emb_dim)
+
+        else:
+            sent_vec = np.zeros((len(sentence), emb_dim))
+            # For every unique word in sentence
+            for word_idx, word_id in enumerate(sentence):
+                try:
+                    if source:
+                        sent_vec[word_idx] = word2vec[id2word[word_id]] @ mapper
+                    else:
+                        sent_vec[word_idx] = word2vec[id2word[word_id]]
+                except KeyError:
+                    continue
+
+            sent_vec = sent_vec.max(axis=0)
+            sent_vec = sent_vec[None]
+            if norm:
+                sent_vec = preprocessing.normalize(sent_vec, axis=1, norm='l2')
+
+            corpus_vec[sent_idx] = sent_vec
+
+    return corpus_vec
+

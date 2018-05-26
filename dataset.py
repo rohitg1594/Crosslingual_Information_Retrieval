@@ -46,6 +46,7 @@ class EncodingDataset(object):
                 parts = line.split('\t')
                 lang1, lang1_str = parts[0].split('@')
                 lang2, lang2_str = parts[1].split('@')
+                label = np.array(1.0) if parts[2] == '1' else np.array(0.0)
             except ValueError:
                 logging.warning("line split error - {}".format(index))
                 new_index = random.randint(0, len(self.index))
@@ -56,12 +57,12 @@ class EncodingDataset(object):
             lang1_ten = torch.from_numpy(lang1_vec)
             lang2_ten = torch.from_numpy(lang2_vec)
             lang1_ten, lang2_ten = lang1_ten.type(torch.LongTensor), lang2_ten.type(torch.LongTensor)
+            label = torch.from_numpy(label).type(torch.FloatTensor)
 
             lang1_ten = Variable(lang1_ten)
             lang2_ten = Variable(lang2_ten)
 
-
-        return lang1, lang1_ten, lang2, lang2_ten
+        return lang1, lang1_ten, lang2, lang2_ten, label
 
     def __len__(self):
         return len(self.index)
