@@ -9,7 +9,7 @@ import pickle
 
 from utils import load_embs, load_embs_bin, str2bool
 from aggregation import tf_idf, load_sentence_data, cosal_vec, tough_baseline, simple_average, max_pool
-from evaluation import eval_sents
+from evaluate_unsupervised import eval_sents
 
 
 logging_master.basicConfig(format='%(levelname)s %(asctime)s: %(message)s', level=logging_master.WARN)
