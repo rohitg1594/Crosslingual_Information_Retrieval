@@ -5,7 +5,19 @@ from scipy.linalg import svd
 import numpy as np
 from sklearn import preprocessing
 
-from utils import sigmoid, tokenize
+from keras.preprocessing.text import text_to_word_sequence
+
+
+def sigmoid(x):
+    """Sigmoid function"""
+
+    return 1/(1 + np.exp(-x))
+
+
+def tokenize(text):
+    sent = text_to_word_sequence(text, filters='\'!"#$%&()*+,-./:;<=>?@[\\]^_`{|}~\t\n')
+
+    return sent
 
 
 def load_sentence_data(file_name, word2id, max_sents):

@@ -5,7 +5,7 @@ import logging as logging_master
 
 
 from utils import load_embs, load_embs_bin, load_dictionary, get_parallel_data, str2bool, procrustes
-from evaluation import eval_main
+from evaluate_unsupervised import eval_main
 
 logging_master.basicConfig(format='%(levelname)s %(asctime)s: %(message)s', level=logging_master.WARN)
 logging = logging_master.getLogger('wikinet')

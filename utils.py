@@ -1,37 +1,26 @@
 import os
 import pickle
 import argparse
-<<<<<<< HEAD
-from collections import Counter
 import logging as logging_master
-
+import pandas as pd
 import numpy as np
 from sklearn.preprocessing import normalize
 from scipy.linalg import svd
-from sklearn.cross_decomposition import CCA
+import re
 
-from keras.preprocessing.text import text_to_word_sequence
+
+from keras.preprocessing.sequence import pad_sequences
+from collections import Counter
+import faiss
+np.set_printoptions(edgeitems=5)
+
+from aggregation import tf_idf
 
 logging_master.basicConfig(format='%(levelname)s %(asctime)s: %(message)s', level=logging_master.WARN)
 logging = logging_master.getLogger('wikinet')
 logging.setLevel(logging_master.INFO)
 
-=======
-import re
-import pandas as pd
-from keras.preprocessing.text import text_to_word_sequence
-from keras.preprocessing.sequence import pad_sequences
-from collections import Counter, defaultdict
-import faiss
->>>>>>> 0c92f7e8b5c594eaf6a2d9e1b6f16151c0e58c98
-np.set_printoptions(edgeitems=5)
-
 MAX_SENT_SIZE = 50
-
-
-def tokenize(text):
-    sent = text_to_word_sequence(text, filters='\'!"#$%&()*+,-./:;<=>?@[\\]^_`{|}~\t\n')
-    return sent
 
 
 def calc_word_probs(corpus):
@@ -128,11 +117,6 @@ def get_parallel_data(src_embs, tgt_embs, dico):
     return X, Y
 
 
-def sigmoid(x):
-    """Sigmoid function"""
-
-    return 1/(1 + np.exp(-x))
-
 
 def str2bool(v):
     """
@@ -148,7 +132,6 @@ def str2bool(v):
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
-<<<<<<< HEAD
 def procrustes(x, y):
     """
     Solve for linear mapping using procrustes solution.
@@ -158,22 +141,6 @@ def procrustes(x, y):
     w = u.dot(v_T)
 
     return w
-
-
-def cca(x, y, num_components):
-    """
-    Transform x and y using sklearn's cross correlation analysis.
-    :param x: source language embeddings
-    :param y: target language embeddings
-    :param num_components: number of components to keep
-    :return: x_c and y_c transformed matrices
-    """
-    cca = CCA(n_components=num_components)
-    logging.info("Learning CCA decomposition")
-    cca.fit(x, y)
-    logging.info("CCA decomposion learned")
-
-    return cca.transform(x, y)
 
 
 def _pad_sent(sent):
@@ -190,50 +157,7 @@ def create_padded_data(corpus):
         out[idx_sent] = _pad_sent(sent)
 
     return out
-=======
-def compute_tf_idf(corpus, word2vec, id2word, vec_dim=300, mapper=np.ones(300), source=True, norm=True):
-    'Computes the tf-idf weight for the corpus'
-    from collections import Counter, defaultdict
-    N = len(corpus)
-    idfmap = defaultdict(int)
-    tf = defaultdict(int)
-    corpus_vec = np.zeros((N, vec_dim))
 
-    # Create idfmap
-    for sent_i, sentence in enumerate(corpus):
-        word_indices = np.unique(sentence)
-        for word_i in word_indices:
-            idfmap[word_i] += 1
-
-    # Create tf-idf weights
-    for sent_i, sentence in enumerate(corpus):
-        vec = np.zeros(vec_dim)
-        index, row_count = np.unique(sentence, return_counts=True)
-        index = index.astype(np.int32)
-        try:
-            f_max = np.max(row_count)
-        except ValueError:
-            corpus_vec[sent_i] = np.zeros(vec_dim)
-            continue
-
-        # For every unique word in sentence
-        for i, f in zip(index, row_count):
-            idf = np.log(N/idfmap[i])
-            tf = (1 + np.log(f))/(1 + np.log(f_max))
-            try:
-                if source:
-                    vec += tf*idf*word2vec[id2word[i]]@mapper
-                else:
-                    vec += tf*idf*word2vec[id2word[i]]
-            except KeyError:
-                continue
-
-        vec = vec[None]
-        if norm:
-            vec = normalize(vec, axis=1, norm='l2')
-        corpus_vec[sent_i] = vec
-
-    return corpus_vec
 
 def read_sents(sentpath, embpath, mappath, limit=None, max_sent=20000, padlen=30, test=False, maxvocab=200000, random_state=42, comp_tfidf = True, project=True, evaluate = False):
     """
@@ -335,7 +259,7 @@ def read_sents(sentpath, embpath, mappath, limit=None, max_sent=20000, padlen=30
 
     if comp_tfidf:
         print("Generating TF-IDF unsupervised representations...")
-        tf_idf_sents = compute_tf_idf(encoded_sents_unsup, word2vec, id2word, source=False)
+        tf_idf_sents = tf_idf(encoded_sents_unsup, word2vec, id2word, source=False)
     else:
         ## create dummy
         tf_idf_sents = None
@@ -345,6 +269,7 @@ def read_sents(sentpath, embpath, mappath, limit=None, max_sent=20000, padlen=30
         return embs, word2vec, word2id, id2word, original_sents, encoded_sents, encoded_sents_unsup, tf_idf_sents
     else:
         return embs, original_sents, encoded_sents, encoded_sents_unsup, tf_idf_sents
+
 
 def get_sample(arr, n, n_iter=None, sample_size=10, fast=True):
     """Get random sample from arr.
@@ -542,9 +467,8 @@ def gen_file_paths(data_dir, src_lang, tgt_lang, source=True):
         src_sent_file = os.path.join(data_dir, "europarl", "Europarl." + "{}-{}.{}".format(src_lang, tgt_lang, src_lang))
         return src_embs_file, src_map_file, src_sent_file
     else:
-        # Target
+    # Target
         tgt_embs_file = os.path.join(data_dir, "embs", "wiki." + tgt_lang + ".vec")
         tgt_map_file = os.path.join(data_dir, "embs", "{}-{}-200000-supervised.pickle".format(tgt_lang, src_lang))
         tgt_sent_file = os.path.join(data_dir, "europarl", "Europarl." + "{}-{}.{}".format(src_lang, tgt_lang, tgt_lang))
         return tgt_embs_file, tgt_map_file, tgt_sent_file
->>>>>>> 0c92f7e8b5c594eaf6a2d9e1b6f16151c0e58c98

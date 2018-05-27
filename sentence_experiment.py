@@ -28,6 +28,7 @@ parser.add_argument("--env_path", default="/home/rohit/anaconda3/envs/InfoRetrie
                     help="directory path of virtual or conda environment")
 args = parser.parse_args()
 
+my_env["PATH"] = args.env_path
 DATA_PATH = args.data_dir
 
 methods = ['tf-idf', 'simple_average', 'tough_baseline', 'CoSal', 'max_pool']
@@ -66,12 +67,13 @@ for k, v in embs_path.items():
 
 def experiment(src_lang, tgt_lang, method):
     call_str = "/home/rohit/anaconda3/envs/InfoRetrieval36/bin/python "
-    call_str += "sentences.py --src_lang {} --tgt_lang {} --method {}".format(src_lang, tgt_lang, method)
+    call_str += "unsupervised_sentences.py --src_lang {} --tgt_lang {} --method {}".format(src_lang, tgt_lang, method)
+    out = subprocess.check_output(call_str.split(), stderr=subprocess.STDOUT, env=my_env, cwd=my_cwd)
     try:
-        out = subprocess.check_output(call_str.split(), stderr=subprocess.STDOUT, env=args.env_path, cwd=my_cwd)
-        f_out.write('{}-{}\n'.format(src_lang, tgt_lang))
-        f_out.write(out.decode('ascii'))
-        f_out.write('\n')
+        with open(join(DATA_PATH, "experiments", "words-{}.txt".format(args.exp_name)), 'a') as f_out:
+            f_out.write('{}-{}\n'.format(src_lang, tgt_lang))
+            f_out.write(out.decode('ascii'))
+            f_out.write('\n')
     except subprocess.CalledProcessError as e:
         print(e.output.decode('ascii'))
 

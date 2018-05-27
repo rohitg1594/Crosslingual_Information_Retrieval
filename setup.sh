@@ -8,6 +8,7 @@ mkdir data
 mkdir data/mapping
 mkdir data/experiments
 mkdir data/embs
+mkdir data/dictionaries
 
 
 echo "Downloading MUSE dictionaries"
@@ -24,6 +25,7 @@ do
   done
 done
 
+
 echo "Downloading Dinu et al. dictionaries"
 mkdir -p data/dictionaries/Dinu
 for fname in OPUS_en_it_europarl_train_5K.txt OPUS_en_it_europarl_test.txt
@@ -33,7 +35,6 @@ curl -Lo data/dictionaries/Dinu/$fname $aws_path/dictionaries/$fname
 done
 
 
-## Download fasttext embeddings
 echo "Downloading fasttext embeddings"
 lgs="es it de fr fi en"
 for lg in ${lgs}
@@ -41,7 +42,7 @@ do
     curl -Lo data/embs/wiki.$lg.vec $fasttext_path/wiki.$lg.vec
 done
 
-## Europarl for sentence retrieval
+
 echo "Downloading europarl sentence retrieval dataset"
 lgs="es it de fr fi"
 if true; then
