@@ -3,24 +3,37 @@ import os
 from os.path import join
 import logging as logging_master
 import pickle
+import argparse
 
 from utils import load_embs
 from aggregation import load_sentence_data
 from utils import calc_word_probs
 
-MAX_SENTENCES = 300000
-
 my_env = os.environ.copy()
-my_env["PATH"] = "/home/rohit/anaconda3/envs/InfoRetrieval36"
 my_cwd = os.path.dirname(os.path.realpath(__file__))
 
 logging_master.basicConfig(format='%(levelname)s %(asctime)s: %(message)s', level=logging_master.WARN)
 logging = logging_master.getLogger('corpus_stats')
 logging.setLevel(logging_master.INFO)
 
-DATA_PATH = "/home/rohit/Documents/Spring_2018/Information_retrieval/Project/Crosslingual_Information_Retrieval/data"
+
+parser = argparse.ArgumentParser(description="Cross Lingual Sentence Retrieval",
+                                 formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+parser.add_argument("--data_dir", default="data", help="directory path of data")
+parser.add_argument("--exp_name", default="", help="experiment name, results of experiment will be saved in this file")
+parser.add_argument("--max_sent", default=300000, type=int, help="number of sentences to estimate statistics")
+parser.add_argument("--eval_sent", default=10000, type=int, help="number of sentences to evaluate on")
+parser.add_argument("--env_path", default="/home/rohit/anaconda3/envs/InfoRetrieval36", type=str,
+                    help="directory path of virtual or conda environment")
+args = parser.parse_args()
+
+DATA_PATH = args.data_dir
+
 methods = ['tf-idf', 'simple_average', 'tough_baseline', 'CoSal', 'max_pool']
-f_out = open(join(DATA_PATH, "experiments", "sentences.txt"), 'a')
+f_out = open(join(DATA_PATH, "experiments", "sentences-{}.txt".format(args.exp_name)), 'w')
+f_out.close()
+
 langs = ['en', 'es', 'de', 'fr', 'fi', 'it']
 embs_path = {}
 embs_bin_path = {}
@@ -40,7 +53,7 @@ for k, v in embs_path.items():
     embs, word2vec, word2id, id2word = load_embs(v, 200000)
     logging.info('Loaded word embeddings for {}'.format(k))
 
-    corpus = load_sentence_data(sent_path[k], word2id, MAX_SENTENCES)
+    corpus = load_sentence_data(sent_path[k], word2id, args.max_sent)
     logging.info('Loaded sentence corpora for {}'.format(k))
 
     word_probs = calc_word_probs(corpus)
@@ -55,7 +68,7 @@ def experiment(src_lang, tgt_lang, method):
     call_str = "/home/rohit/anaconda3/envs/InfoRetrieval36/bin/python "
     call_str += "sentences.py --src_lang {} --tgt_lang {} --method {}".format(src_lang, tgt_lang, method)
     try:
-        out = subprocess.check_output(call_str.split(), stderr=subprocess.STDOUT, env=my_env, cwd=my_cwd)
+        out = subprocess.check_output(call_str.split(), stderr=subprocess.STDOUT, env=args.env_path, cwd=my_cwd)
         f_out.write('{}-{}\n'.format(src_lang, tgt_lang))
         f_out.write(out.decode('ascii'))
         f_out.write('\n')

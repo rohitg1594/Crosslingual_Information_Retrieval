@@ -2,12 +2,25 @@ import subprocess
 import os
 from os.path import join
 import logging as logging_master
+import argparse
+
 from utils import load_embs, calc_word_probs
 from aggregation import load_sentence_data
 import pickle
 
+parser = argparse.ArgumentParser(description="Cross Lingual Sentence Retrieval",
+                                 formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+parser.add_argument("--data_dir", default="data", help="directory path of data")
+parser.add_argument("--exp_name", default="", help="experiment name, results of experiment will be saved in this file")
+parser.add_argument("--env_path", default="/home/rohit/anaconda3/envs/InfoRetrieval36", type=str,
+                    help="directory path of virtual or conda environment")
+args = parser.parse_args()
+
+DATA_PATH = args.data_dir
+
 my_env = os.environ.copy()
-my_env["PATH"] = "/home/rohit/anaconda3/envs/InfoRetrieval36"
+my_env["PATH"] = args.env_path
 my_cwd = os.path.dirname(os.path.realpath(__file__))
 
 langs = ['en', 'es', 'it', 'de', 'fr', 'fi']
@@ -15,8 +28,8 @@ embs_path = {}
 embs_bin_path = {}
 sent_path = {}
 
-DATA_PATH = "/home/rohit/Documents/Spring_2018/Information_retrieval/Project/Crosslingual_Information_Retrieval/data"
-f_out = open(join(DATA_PATH, "experiments", "words.txt"), 'a')
+f = open(join(DATA_PATH, "experiments", "words-{}.txt".format(args.exp_name)), 'w')
+f.close()
 
 logging_master.basicConfig(format='%(levelname)s %(asctime)s: %(message)s', level=logging_master.WARN)
 logging = logging_master.getLogger('corpus_stats')
@@ -50,9 +63,10 @@ def experiment(src_lang, tgt_lang):
     call_str += "words.py --src_lang {} --tgt_lang {}".format(src_lang, tgt_lang)
     out = subprocess.check_output(call_str.split(), stderr=subprocess.STDOUT, env=my_env, cwd=my_cwd)
     try:
-        f_out.write('{}-{}\n'.format(src_lang, tgt_lang))
-        f_out.write(out.decode('ascii'))
-        f_out.write('\n')
+        with open(join(DATA_PATH, "experiments", "words-{}.txt".format(args.exp_name)), 'a') as f_out:
+            f_out.write('{}-{}\n'.format(src_lang, tgt_lang))
+            f_out.write(out.decode('ascii'))
+            f_out.write('\n')
     except subprocess.CalledProcessError as e:
         print(e.output.decode('ascii'))
 

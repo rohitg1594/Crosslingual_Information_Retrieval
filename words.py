@@ -1,22 +1,11 @@
 import argparse
-import numpy as np
 import os
 import pickle
 import logging as logging_master
-import sys
 
-import faiss
-
-import torch.optim as optim
-import torch.nn as nn
-import torch
-
-from sklearn.cross_decomposition import CCA
 
 from utils import load_embs, load_embs_bin, load_dictionary, get_parallel_data, str2bool, procrustes
-from evaluation import eval_main, eval_w
-from discriminator import Discriminator
-from trainer import Trainer
+from evaluation import eval_main
 
 logging_master.basicConfig(format='%(levelname)s %(asctime)s: %(message)s', level=logging_master.WARN)
 logging = logging_master.getLogger('wikinet')
@@ -85,7 +74,7 @@ if args.dict == "MUSE":
                              args.src_lang + '-' + args.tgt_lang + '.5000-6500.txt')
 else:
     test_dict = os.path.join(args.data_dir, "dictionaries", "Dinu",
-                             "OPUS_en_fr_europarl_test.txt
+                             "OPUS_en_fr_europarl_test.txt",
                              args.src_lang + '-' + args.tgt_lang + '.5000-6500.txt')
 assert os.path.exists(train_dict)
 assert os.path.exists(test_dict)
