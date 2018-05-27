@@ -28,15 +28,17 @@ parser.add_argument("--max_sent", default=1.9e6+10000, type=int, help="Maximum n
 parser.add_argument("--test_sent", default=10000, type=int, help="Number of aligned translation pairs for testing")
 parser.add_argument("--pad_len", default=53, type=int,  help="Length of sentence padding for neural network; 95 pct of English sentences comprise 53 tokens")
 parser.add_argument("--fooling", default=0, type=int, help="Whether to read a fooling model or not")
-parser.add_argument("--ratio", default=1, type=int, help="What ratio the model trains on")
-parser.add_argument("--optimizer", default="Nadam", help="Choose between Nadam or SGD for network optimizer")
+parser.add_argument("--ratio", default=1, type=int, help="What ratio the model did train on")
+parser.add_argument("--optimizer", default="Nadam", help="What optimizer the model trained on, leave as default")
 
 # Scoring
-parser.add_argument("--threshold", default=100, type=int, help="Determines no. of sentences to evaluate on")
+parser.add_argument("--threshold", default=100, type=int, help="Determines no. of sentences to evaluate on, maximum is test_sent")
 parser.add_argument("--filtersize", default=500, type=int,  help="Indicates size of prefiltering, only the k top candidates w.r.t. tough_baseline are evaluated on")
 
 
 args = parser.parse_args()
+
+assert(args.test_sent < args.threshold)
 
 ###### INITIATE EVALUATION ######
 print()
@@ -124,7 +126,7 @@ else:
 model_folder = "./models/{}-{}".format(args.src_lang, args.tgt_lang)
 model_name = "model_{}-{}_{}_ratio-{}_{}".format(args.src_lang, args.tgt_lang, args.optimizer, args.ratio, fooling)
 model_path = os.path.join(model_folder, model_name)
-model_path = "./models/monitoring/2018-5-24_en-es_Nadam_ratio-3_fooling_cp"
+#model_path = "./models/monitoring/2018-5-24_en-es_Nadam_ratio-3_fooling_cp"
 print(model_path)
 model = load_model(model_path)
 model.summary()
