@@ -14,7 +14,7 @@ from collections import Counter
 import faiss
 np.set_printoptions(edgeitems=5)
 
-from aggregation import tf_idf
+from aggregation import tf_idf, tokenize
 
 logging_master.basicConfig(format='%(levelname)s %(asctime)s: %(message)s', level=logging_master.WARN)
 logging = logging_master.getLogger('wikinet')
@@ -459,16 +459,17 @@ def gen_file_paths(data_dir, src_lang, tgt_lang, source=True):
     :param source: boolean, whether to read paths for src_lang or tgt_lang
     :return: mono-lingual embeddings, embedding mapping, and sentences by lang
     """
-
+    if tgt_lang == 'de':
+        src_lang, tgt_lang = tgt_lang, src_lang
     if source:
     # Source
         src_embs_file = os.path.join(data_dir, "embs", "wiki." + src_lang + ".vec")
-        src_map_file = os.path.join(data_dir, "embs", "{}-{}-200000-supervised.pickle".format(src_lang, tgt_lang))
-        src_sent_file = os.path.join(data_dir, "europarl", "Europarl." + "{}-{}.{}".format(src_lang, tgt_lang, src_lang))
+        src_map_file = os.path.join(data_dir, "mapping", "{}-{}-200000-supervised.pickle".format(src_lang, tgt_lang))
+        src_sent_file = os.path.join(data_dir, "europarl", "europarl-v7." + "{}-{}.{}".format(src_lang, tgt_lang, src_lang))
         return src_embs_file, src_map_file, src_sent_file
     else:
     # Target
         tgt_embs_file = os.path.join(data_dir, "embs", "wiki." + tgt_lang + ".vec")
-        tgt_map_file = os.path.join(data_dir, "embs", "{}-{}-200000-supervised.pickle".format(tgt_lang, src_lang))
-        tgt_sent_file = os.path.join(data_dir, "europarl", "Europarl." + "{}-{}.{}".format(src_lang, tgt_lang, tgt_lang))
+        tgt_map_file = os.path.join(data_dir, "mapping", "{}-{}-200000-supervised.pickle".format(tgt_lang, src_lang))
+        tgt_sent_file = os.path.join(data_dir, "europarl", "europarl-v7." + "{}-{}.{}".format(src_lang, tgt_lang, tgt_lang))
         return tgt_embs_file, tgt_map_file, tgt_sent_file

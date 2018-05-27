@@ -70,7 +70,7 @@ def experiment(src_lang, tgt_lang, method):
     call_str += "unsupervised_sentences.py --src_lang {} --tgt_lang {} --method {}".format(src_lang, tgt_lang, method)
     out = subprocess.check_output(call_str.split(), stderr=subprocess.STDOUT, env=my_env, cwd=my_cwd)
     try:
-        with open(join(DATA_PATH, "experiments", "words-{}.txt".format(args.exp_name)), 'a') as f_out:
+        with open(join(DATA_PATH, "experiments", "sentences-{}.txt".format(args.exp_name)), 'a') as f_out:
             f_out.write('{}-{}\n'.format(src_lang, tgt_lang))
             f_out.write(out.decode('ascii'))
             f_out.write('\n')

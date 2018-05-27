@@ -12,7 +12,8 @@ import os
 import sys
 import pandas as pd
 from keras.callbacks import CSVLogger, EarlyStopping, ModelCheckpoint
-from utils import read_sents, generate_train_random, generate_train_unsupervised, gen_file_paths, compute_tf_idf
+from utils import read_sents, generate_train_random, generate_train_unsupervised, gen_file_paths
+from aggregation import tf_idf
 import faiss
 from collections import defaultdict
 
@@ -66,12 +67,18 @@ parser.add_argument("--eval_instances", default=100, help="Choose number of inst
 args = parser.parse_args()
 
 ###### GENERATE PATHS ######
+for k, v in vars(args).items():
+    print('{:<30}\t{}'.format(k, v))
 
 # Source
 src_embs_file, src_map_file, src_sent_file = gen_file_paths(args.data_dir, args.src_lang, args.tgt_lang, source = True)
 
 # Target
 tgt_embs_file, tgt_map_file, tgt_sent_file = gen_file_paths(args.data_dir, args.src_lang, args.tgt_lang, source = False)
+
+
+print(src_embs_file, src_map_file, src_sent_file)
+print(tgt_embs_file, tgt_map_file, tgt_sent_file)
 
 ###### COMMENCE TRAINING ######
 print()
@@ -113,6 +120,7 @@ print()
 ######## READ EMBEDDINGS & SENTENCES ########
 print("Reading " + args.src_lang + " data")
 print("----------------------------------------------")
+print(src_sent_file)
 src_embs, src_word2vec, src_word2id, src_id2word, src_original_sents, src_encoded_sents, src_encoded_sents_unsup, src_tf_idf = read_sents(src_sent_file, src_embs_file, src_map_file, \
                                                                                                        maxvocab=args.max_vocab, max_sent=args.max_sent, padlen=args.pad_len,\
                                                                                                         random_state=42, comp_tfidf = args.fooling, project=True, evaluate = True)
@@ -247,7 +255,7 @@ else:
 #### CSVLogger
 date = str(datetime.datetime.now().year) + "-" + str(datetime.datetime.now().month) + "-" + str(datetime.datetime.now().day)
 csv_name = date + "_{}-{}_{}_ratio-{}_{}".format(args.src_lang, args.tgt_lang, args.optimizer, args.ratio, fooling)
-csv_path = os.path.join("training_logs/csv/", csv_name)
+csv_path = os.path.join("./training_logs/csv/", csv_name)
 logger = CSVLogger(filename=csv_path)
 #### Model Checkpoint
 cp_path = "./models/monitoring/" + date + "_{}-{}_{}_ratio-{}_{}_cp".format(args.src_lang, args.tgt_lang, args.optimizer, args.ratio, fooling)
@@ -276,7 +284,7 @@ print("Model saved")
 
 ## save pickle
 pickle_name = date + "_trainingHist_{}-{}_{}_ratio-{}_{}".format(args.src_lang, args.tgt_lang, args.optimizer, args.ratio, fooling)
-pickle_path = os.path.join("training_logs/trainingHist/", pickle_name)
+pickle_path = os.path.join("./training_logs/trainingHist/", pickle_name)
 with open(pickle_path, 'wb') as file_pi:
     pickle.dump(history.history, file_pi)
 
