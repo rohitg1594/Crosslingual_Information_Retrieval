@@ -39,7 +39,7 @@ parser.add_argument("--create_test", default=0, type=int, help="Merely create te
 parser.add_argument("--save_test", default=0, type=int, help="Save test sentences")
 parser.add_argument("--ratio", default=1, type=int, help="Generates training data that 50:50 comprises true translation and random sentences pairs. Ratio denotes scale of data, e.g. 1 doubles original translation pairs, 2 copies translation pairs 1 and generates 2 random instances per pair")
 parser.add_argument("--fooling", default=0, type=int, help="Whether to create tough fooling instances or not")
-parser.add_argument("--faisssize", default=80000, type=int, help="Faisssize")
+parser.add_argument("--faisssize", default=80000, type=int, help="Bucket size to scan for near translations for creating tough instances")
 parser.add_argument("--weight", default=0.4,type=float, help="Percentage of random instances when creating fooling instances")
 
 # Network Architecture
@@ -52,16 +52,12 @@ parser.add_argument("--dense_units", default=1024, type=int, help="LSTM units")
 parser.add_argument("--optimizer", default="Nadam", help="Choose between Nadam or SGD for network optimizer")
 
 # Network Fitting
-parser.add_argument("--epochs", default=30, type=int, help="Choose between Nadam or SGD for network optimizer")
+parser.add_argument("--epochs", default=30, type=int, help="Choose maximum number of epochs for training")
 parser.add_argument("--batch_size", default=512,type=int, help="Choose batch size for model fitting")
 parser.add_argument("--validation_split", default=0.1,type=float, help="Choose percentage of training data to use for validation")
 parser.add_argument("--callbacks", default=1, type=int, help="Set callbacks on / off for trial runs")
 parser.add_argument("--earlystopping", default=1,type=int, help="Include Keras.Callbacks.EarlyStopping")
 parser.add_argument("--earlystopping_patience", default=2,type=int,help="Patience of Keras.Callbacks.EarlyStopping")
-
-# Evaluation
-parser.add_argument("--eval", default=0, help="Whether to do evaluation on test set")
-parser.add_argument("--eval_instances", default=100, help="Choose number of instances to evaluate upon")
 
 args = parser.parse_args()
 
@@ -280,47 +276,6 @@ pickle_path = os.path.join("training_logs/trainingHist/", pickle_name)
 with open(pickle_path, 'wb') as file_pi:
     pickle.dump(history.history, file_pi)
 
-
-######## EVALUATION ########
-## Graveyard, legacy evaluation
-
-if args.eval == 1:
-    test_src = np.array(test_df["src"].tolist())
-    test_tgt = np.array(test_df['tgt'].tolist())
-    test_indices = test_df.index.tolist()
-
-    top_1 = []
-    top_5 = []
-    top_10 = []
-
-    for i in range(100):
-        test_src_i = np.tile(test_src[i], (len(test_df), 1))
-        predictions = model.predict([test_src_i, test_tgt])
-        check_index = test_indices[i]
-        scorelist = []
-        for index, score in zip(test_indices, predictions):
-            scorelist.append((index, score))
-        sorted_scores = sorted(scorelist, key=lambda x: x[1], reverse=True)
-        indexranking = []
-        for index, score in sorted_scores:
-            indexranking.append(index)
-
-        print(indexranking.index(check_index))
-        if indexranking.index(check_index) <= 9:
-            top_10.append(indexranking.index(check_index))
-        if indexranking.index(check_index) <= 4:
-            top_5.append(indexranking.index(check_index))
-        top_10.append(indexranking.index(check_index))
-        if indexranking.index(check_index) == 0:
-            top_1.append(indexranking.index(check_index))
-        top_5.append(indexranking.index(check_index))
-        top_10.append(indexranking.index(check_index))
-
-    print(len(top_1) / 100)
-    print(len(top_5) / 100)
-    print(len(top_10) / 100)
-
-######## EXIT ########
 
 print("Model trained and saved successfully, exiting Python environment")
 sys.exit(0)
