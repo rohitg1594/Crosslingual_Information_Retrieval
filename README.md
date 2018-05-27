@@ -23,6 +23,7 @@ words.py, sentences.py, word_experiment.py, sentence_experiment.py, evaluate_sup
  To see the options available for each file, you
 can use the help option : python [FILE-NAME] -h.
 
+**NOTE :  Run the word_experiment.py file before sentence_experiment.py to create and save the linear mappings.**
 ### Words
 
 1. The file words.py can be used to perform individual mapping experiments, the main options are src_lang, tgt_lang and

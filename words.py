@@ -44,7 +44,6 @@ beta = args.beta
 max_vocab = args.max_vocab
 norm = args.norm
 emb_dim = args.emb_dim
-evaluate_every = args.evaluate_every
 
 assert os.path.isdir(args.data_dir)
 src_embs_file = os.path.join(args.data_dir, "embs", "wiki." + args.src_lang + ".vec")
@@ -102,8 +101,8 @@ logging.info('evaluating final mapping')
 eval_main(W, test_dict, src_word2id, tgt_word2id, src_embs, tgt_embs, src_id2word, tgt_id2word, verbose=False)
 
 if args.export:
-    f_name = os.path.join(args.data_dir, "mapping", '{}-{}-{}-{}.pickle'.format(args.src_lang, args.tgt_lang,
-                                                                                args.max_vocab, args.method))
+    f_name = os.path.join(args.data_dir, "mapping", '{}-{}-{}.pickle'.format(args.src_lang, args.tgt_lang,
+                                                                                args.max_vocab))
     logging.info('saving learned mapping to {}'.format(f_name))
     with open(f_name, 'wb') as f:
         pickle.dump(W, f)

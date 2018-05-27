@@ -65,7 +65,7 @@ else:
     logging.info('Loaded target embeddings')
 
 # Mapper
-map_file = join(args.data_dir, "mapping", "{}-{}-200000-supervised.pickle".format(args.src_lang, args.tgt_lang))
+map_file = join(args.data_dir, "mapping", "{}-{}-200000.pickle".format(args.src_lang, args.tgt_lang))
 with open(map_file, 'rb') as f:
     W = pickle.load(f)
     logging.info("Loaded mapper")
