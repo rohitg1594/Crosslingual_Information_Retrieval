@@ -12,16 +12,12 @@ logging_master.basicConfig(format='%(levelname)s %(asctime)s: %(message)s', leve
 logging = logging_master.getLogger('corpus_stats')
 logging.setLevel(logging_master.INFO)
 
-langs = ['es', 'de', 'fr', 'fi', 'it', 'en']
+langs = ['es', 'en']
 
 TRAINING_SIZE = 10**6
 VALIDATION_SIZE = 5*10**3
 TEST_SIZE = 10**4
 
-training_f = join(DATA_PATH, "training", "new-training.tsv")
-
-new_f = open(training_f, 'w')
-new_f.close()
 
 lang2corpus = {}
 for lang in langs:
@@ -40,6 +36,7 @@ for lang in langs:
 
 
 def create_files(lang1, lang2):
+    training_f = join(DATA_PATH, "training", "{}-{}.training".format(lang1, lang2))
     with open(training_f, "a") as f_train:
         for idx in range(TRAINING_SIZE):
             lang1_vec = ','.join([str(x) for x in lang2corpus[lang1][idx]])
@@ -69,15 +66,6 @@ def create_files(lang1, lang2):
     logging.info("Testing file done for {}-{}".format(lang1, lang2))
 
 
-lang_pairs = set()
-for lang in langs:
-    if lang == 'en':
-        continue
-    lang_pairs.add((lang, 'en'))
-    lang_pairs.add(('en', lang))
-
-
-for lang_pair in lang_pairs:
-    create_files(*lang_pair)
+create_files(**langs)
 
 

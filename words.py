@@ -40,18 +40,8 @@ parser.add_argument("--max_vocab", default=200000, type=int, help="Maximum vocab
 parser.add_argument("--ortho", default=True, type=str2bool,  help="Whether to orthognalize the mapping matrix")
 parser.add_argument("--beta", default=0.01, type=float, help="Beta parameter for orthognalization")
 parser.add_argument("--norm", default=1, type=int,  help="Normalize embeddings")
-# Unsupervised training
-parser.add_argument("--hidden_dim", default="1024", type=int, help="dimension of the discriminator hidden layer")
-parser.add_argument("--num_hidden", default="2", type=int, help="number of hidden layers in the discriminator")
-parser.add_argument("--input_do", default="0", type=int, help="amount of hidden dropout")
-parser.add_argument("--hidden_do", default="0.1", type=float, help="amount of hidden layer dropout")
-parser.add_argument("--smooth", default="0.1", type=float, help="smoothing parameter for adversarial training")
-parser.add_argument("--batch_size", default="128", type=int, help="batch size")
-parser.add_argument("--num_epochs", default="10", type=int, help="number of epochs for adversarial training")
-parser.add_argument("--evaluate_every", default="10", type=int, help="number of epochs after which to evaluate")
-# Word embedding method choice
-parser.add_argument("--method", choices=['procrustes', 'unsupervised', 'CCA'],
-                    default="procrustes", help="method to learn word embeddings")
+# Evaluation
+parser.add_argument("--dict", default="MUSE", type=str, choices=["MUSE", "Dinu"], help="set of dictionaries to use")
 # Export
 parser.add_argument("--export", default=True, type=str2bool, help="whether to export learned mapping matrix")
 
@@ -65,13 +55,6 @@ beta = args.beta
 max_vocab = args.max_vocab
 norm = args.norm
 emb_dim = args.emb_dim
-smooth = args.smooth
-batch_size = args.batch_size
-num_epochs = args.num_epochs
-hidden_dim = args.hidden_dim
-num_hidden = args.num_hidden
-input_do = args.input_do
-hidden_do = args.hidden_do
 evaluate_every = args.evaluate_every
 
 assert os.path.isdir(args.data_dir)
@@ -96,8 +79,14 @@ else:
 
 
 # Dictionaries
-train_dict = os.path.join(args.data_dir, "dictionaries", args.src_lang + '-' + args.tgt_lang + '.0-5000.txt')
-test_dict = os.path.join(args.data_dir, "dictionaries", args.src_lang + '-' + args.tgt_lang + '.5000-6500.txt')
+train_dict = os.path.join(args.data_dir, "dictionaries", "MUSE", args.src_lang + '-' + args.tgt_lang + '.0-5000.txt')
+if args.dict == "MUSE":
+    test_dict = os.path.join(args.data_dir, "dictionaries", "MUSE",
+                             args.src_lang + '-' + args.tgt_lang + '.5000-6500.txt')
+else:
+    test_dict = os.path.join(args.data_dir, "dictionaries", "Dinu",
+                             "OPUS_en_fr_europarl_test.txt
+                             args.src_lang + '-' + args.tgt_lang + '.5000-6500.txt')
 assert os.path.exists(train_dict)
 assert os.path.exists(test_dict)
 
@@ -111,84 +100,12 @@ if args.save_pickle:
     logging.info("embeddings saved in pickle dump")
 
 
-if args.method == 'procrustes':
-    dico = load_dictionary(train_dict, -1, src_word2id, tgt_word2id)
-    X, Y = get_parallel_data(src_embs, tgt_embs, dico)
-    W = procrustes(X, Y)
+dico = load_dictionary(train_dict, -1, src_word2id, tgt_word2id)
+X, Y = get_parallel_data(src_embs, tgt_embs, dico)
+W = procrustes(X, Y)
 
-    if int(args.ortho):
-        W = (1 + beta)*W - beta*(W@W.T)@W
-
-elif args.method == 'unsupervised':
-
-    optimizer = optim.Adam
-
-    # Setup the discriminator and the mapper
-    discriminator = Discriminator(emb_dim, hidden_dim, num_hidden, input_do, hidden_do)
-    mapper = nn.Linear(emb_dim, emb_dim)
-    mapper.weight.data.copy_(torch.diag(torch.ones(emb_dim)))
-
-    # Change the numpy embeddings to torch embeddings
-    src_embs_torch = nn.Embedding(len(src_embs), emb_dim)
-    src_embs_torch.weight.data.copy_(torch.from_numpy(src_embs.astype(np.float32)))
-    tgt_embs_torch = nn.Embedding(len(tgt_embs), emb_dim)
-    tgt_embs_torch.weight.data.copy_(torch.from_numpy(tgt_embs.astype(np.float32)))
-
-    # We don't want to train the embeddings
-    src_embs_torch.weight.requires_grad = False
-    tgt_embs_torch.weight.requires_grad = False
-
-    # Setup the trainer
-    trainer = Trainer(optimizer, src_embs_torch, tgt_embs_torch, batch_size, smooth, discriminator, mapper, beta)
-
-    # Training loop
-    for i in range(num_epochs):
-        num_iters = 0
-        batch = 0
-        while num_iters <= len(src_embs):
-            for j in range(5):
-                dis_loss = trainer.dis_step()
-            mapper_loss = trainer.mapping_step()
-
-            num_iters += batch_size
-            batch += 1
-
-            if batch % 10 == 0:
-                logging.info("Epoch : {}, iter : {}, Disciminator Loss: {}, Mapper Loss : {}".format(i, batch,
-                                                                                                     dis_loss,
-                                                                                                     mapper_loss))
-            if batch % evaluate_every == 0:
-
-                W = mapper.weight.data.numpy()
-                eval_main(W, test_dict, src_word2id, tgt_word2id, src_embs, tgt_embs, src_id2word, tgt_id2word,
-                          verbose=False)
-
-elif args.method == 'CCA':
-    dico_train = load_dictionary(train_dict, -1, src_word2id, tgt_word2id)
-    dico_test = load_dictionary(test_dict, -1, src_word2id, tgt_word2id)
-
-    X_train, Y_train = get_parallel_data(src_embs, tgt_embs, dico_train)
-    X_test, Y_test = get_parallel_data(src_embs, tgt_embs, dico_test)
-    print(X_train.shape, Y_train.shape)
-    print(X_test.shape, Y_test.shape)
-
-    num_components = 80
-    cca = CCA(n_components=num_components)
-    logging.info("learning cca transformation")
-    cca.fit(X_train, Y_train)
-    logging.info("cca transformation learned")
-
-    X_test_c, Y_test_c = cca.transform(X_test, Y_test)
-
-    index = faiss.IndexFlatIP(num_components)
-    index.add(Y_test_c.astype(np.float32))
-    d, i = index.search(X_test_c.astype(np.float32), 20)
-
-    dicts = eval_w(i, dico_test, src_id2word)
-    sys.exit(1)
-
-
-
+if int(args.ortho):
+    W = (1 + beta)*W - beta*(W@W.T)@W
 
 
 logging.info('mapping matrix learned')
