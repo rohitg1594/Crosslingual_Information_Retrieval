@@ -121,6 +121,20 @@ else:
 # Evaluation
 index = faiss.IndexFlatIP(args.emb_dim)
 index.add(tgt_vec.astype(np.float32))
-D, I = index.search(src_vec.astype(np.float32), 100)
+D, I = index.search(src_vec.astype(np.float32), 10000)
+
+for i in range(20):
+    true = src_corpus[i]
+    true_str = ' '.join([src_id2word[id] for id in true])
+    print(true_str)
+    print('---------------------')
+    pred_str = ''
+    predictions = I[i][:10]
+    for prediction in predictions:
+        tgt_sent = tgt_corpus[prediction]
+        pred_str = ' '.join([tgt_id2word[id] for id in tgt_sent])
+        print(pred_str)
+    print('\n\n\n')
+
 
 eval_sents(I, [1, 5, 10])

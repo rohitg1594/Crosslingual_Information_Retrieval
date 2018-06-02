@@ -66,7 +66,7 @@ for k, v in embs_path.items():
 
 
 def experiment(src_lang, tgt_lang, method):
-    call_str = "/home/rohit/anaconda3/envs/InfoRetrieval36/bin/python "
+    call_str = args.env_path + "bin/python "
     call_str += "unsupervised_sentences.py --src_lang {} --tgt_lang {} --method {}".format(src_lang, tgt_lang, method)
     out = subprocess.check_output(call_str.split(), stderr=subprocess.STDOUT, env=my_env, cwd=my_cwd)
     try:

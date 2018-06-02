@@ -104,7 +104,7 @@ def eval_main(W, test_dict, src_word2id, tgt_word2id, src_embs, tgt_embs, src_id
 
 
 def eval_sents(I, ks):
-    """Evaluate the sentences retrieval for top ks precision."""
+    """Evaluate the sentences retrieval for top ks precision and Mean Reciprocal Rank(MRR)."""
     topks = np.zeros(len(ks))
 
     for j, k in enumerate(ks):
@@ -120,5 +120,6 @@ def eval_sents(I, ks):
     # Mean Reciprocal Rank
     ranks = []
     for i in range(I.shape[0]):
-        ranks.append(1 / (np.where(i == I[i])[0] + 1))
+        index = np.where(i == I[i])[0] + 1
+        ranks.append(1 / index)
     print('Mean Reciprocal Rank : {}'.format(np.mean(np.array(ranks))))

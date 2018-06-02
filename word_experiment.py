@@ -59,7 +59,7 @@ for k, v in embs_path.items():
 
 
 def experiment(src_lang, tgt_lang):
-    call_str = "/home/rohit/anaconda3/envs/InfoRetrieval36/bin/python "
+    call_str = args.env_path + "bin/python "
     call_str += "words.py --src_lang {} --tgt_lang {}".format(src_lang, tgt_lang)
     out = subprocess.check_output(call_str.split(), stderr=subprocess.STDOUT, env=my_env, cwd=my_cwd)
     try:

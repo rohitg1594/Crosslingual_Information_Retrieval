@@ -38,7 +38,7 @@ parser.add_argument("--filtersize", default=500, type=int,  help="Indicates size
 
 args = parser.parse_args()
 
-assert(args.test_sent < args.threshold)
+
 
 ###### INITIATE EVALUATION ######
 print()
@@ -226,8 +226,6 @@ def supervised_scores(model, src_encoded_sents_unsup, tgt_encoded_sents_unsup, s
     print("Starting Predictions...")
     total_scores = []
     for i in range(threshold):
-        if (i % 50) == 0: print(i,"==>", sep = " ")
-        if (i % 1000) == 0: print()
         indices = I[i]
         tgt_test = np.array(test_df['tgt'].tolist())[indices]
         src_test = np.tile(np.array(test_df['src'])[i], (filtersize, 1))
